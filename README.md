@@ -27,8 +27,8 @@ Before running the script, ensure the following tools are installed:
  **Clone the repository**:
 
 
-    git clone https://github.com/your-username/P.git
-    cd project-name
+    git clone https://github.com/armosec/perfornamce.git
+    cd perfornamce
 
 
 ## Arguments
