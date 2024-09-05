@@ -1,0 +1,196 @@
+{{- $kubeTargetVersion := default .Capabilities.KubeVersion.GitVersion .Values.kubeTargetVersionOverride }}
+{{- if and (semverCompare ">=1.14.0-0" $kubeTargetVersion) (semverCompare "<9.9.9-9" $kubeTargetVersion) .Values.defaultRules.create .Values.defaultRules.rules.kubernetesResources }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ printf "%s-%s" (include "kube-prometheus-stack.fullname" .) "ca-armo-pulsar-rules" | trunc 63 | trimSuffix "-" }}
+  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  labels:
+    app: {{ template "kube-prometheus-stack.name" . }}
+{{ include "kube-prometheus-stack.labels" . | indent 4 }}
+{{- if .Values.defaultRules.labels }}
+{{ toYaml .Values.defaultRules.labels | indent 4 }}
+{{- end }}
+{{- if .Values.defaultRules.annotations }}
+  annotations:
+{{ toYaml .Values.defaultRules.annotations | indent 4 }}
+{{- end }}
+spec:
+  groups:
+  - name: ca-armo-pulsar-rules
+    rules:
+    - alert: MessagesInDLQ
+      annotations:
+        description: "Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}', topic '{{`{{`}} $labels.topic {{`}}`}}'."
+        summary: New message in Dead Letter Queue
+      expr: |-
+        rate(pulsar_in_messages_total{topic=~".*-dlq"}[5m]) > 0
+      for: 3m
+      labels:
+        severity: warning
+        app: pulsar
+
+    - alert: LightHouseUNSMessagesInDLQ
+      annotations:
+        description: "LightHouse team, UNS have new messages in Dead Letter Queue - Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}', topic '{{`{{`}} $labels.topic {{`}}`}}'."
+        summary: New message in Dead Letter Queue - UNS
+      expr: |-
+        rate(pulsar_in_messages_total{exported_namespace=~"{{ .Values.pulsar.dlq.LightHouse.usersNotificationService.exportedNamespace }}.*",topic=~".*-dlq"}[5m]) > 0
+      for: 3m
+      labels:
+        team: lighthouse
+        app: pulsar
+        alert: dlq
+
+    - alert: LightHouseESMessagesInDLQ
+      annotations:
+        description: "LightHouse team, you have new messages in Dead Letter Queue - Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}', topic '{{`{{`}} $labels.topic {{`}}`}}'."
+        summary: New message in Dead Letter Queue - event-sourcing
+      expr: |-
+        rate(pulsar_in_messages_total{exported_namespace=~"{{ .Values.pulsar.dlq.LightHouse.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.dlq.LightHouse.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*-dlq{{- end -}}"}[5m]) > 0                     
+      for: 3m
+      labels:
+        team: lighthouse
+        app: pulsar
+        alert: dlq
+
+    - alert: LightHouseInternalMessagesInDLQ
+      annotations:
+        description: "LightHouse team, you have new messages in Dead Letter Queue - Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}', topic '{{`{{`}} $labels.topic {{`}}`}}'."
+        summary: New message in Dead Letter Queue - internal
+      expr: |-
+        rate(pulsar_in_messages_total{exported_namespace=~"{{ .Values.pulsar.dlq.LightHouse.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.dlq.LightHouse.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*-dlq{{- end -}}"}[5m]) > 0                     
+      for: 3m
+      labels:
+        team: lighthouse
+        app: pulsar
+        alert: dlq
+
+    - alert: SonarESMessagesInDLQ
+      annotations:
+        description: "Sonar team, you have new messages in Dead Letter Queue - Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}', topic '{{`{{`}} $labels.topic {{`}}`}}'."
+        summary: New message in Dead Letter Queue - event-sourcing
+      expr: |-
+        rate(pulsar_in_messages_total{exported_namespace=~"{{ .Values.pulsar.dlq.Sonar.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.dlq.Sonar.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*-dlq{{- end -}}"}[5m]) > 0                   
+      for: 3m
+      labels:
+        team: sonar
+        app: pulsar
+        alert: dlq
+
+    - alert: SonarInternalMessagesInDLQ
+      annotations:
+        description: "Sonar team, you have new messages in Dead Letter Queue - Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}', topic '{{`{{`}} $labels.topic {{`}}`}}'."
+        summary: New message in Dead Letter Queue - internal
+      expr: |-
+        rate(pulsar_in_messages_total{exported_namespace=~"{{ .Values.pulsar.dlq.Sonar.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.dlq.Sonar.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*-dlq{{- end -}}"}[5m]) > 0                     
+      for: 3m
+      labels:
+        team: sonar
+        app: pulsar
+        alert: dlq
+
+
+    - alert: BacklogIsFillingUp
+      annotations:
+        description: "Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}', topic '{{`{{`}} $labels.topic {{`}}`}}'."
+        summary: Backlog is filling up
+      expr: |-
+        sum(
+            (rate(pulsar_rate_in{exported_namespace!~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}", topic=~".*"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace!~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}", topic=~".*"}[5m]) > {{ .Values.pulsar.backlog.IngestersThreshold }}) 
+            and 
+            (rate(pulsar_rate_in{exported_namespace!~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}", topic=~".*"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace!~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}", topic=~".*"}[5m]) < 10000000000)
+        ) by (exported_namespace, topic)
+      for: 5m
+      labels:
+        severity: warning
+        app: pulsar
+
+    - alert: SonarInternalBacklogIsFillingUp
+      annotations:
+        description: "Sonar Team, elevated backlog levels detected in Pulsar topic: '{{`{{`}} $labels.topic {{`}}`}}', namespace: '{{`{{`}} $labels.exported_namespace {{`}}`}}'. Suspected consumption process anomaly. please investigate immediately to ensure operational stability."
+        summary: Sonar team, backlog of topic in internal namespace filling up.
+      expr: |-
+        sum(
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) > {{ .Values.pulsar.backlog.IngestersThreshold }}) 
+            and 
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) < 10000000000)
+        ) by (exported_namespace, topic)
+      for: 5m
+      labels:
+        team: sonar
+        app: pulsar
+
+    - alert: SonarESBacklogIsFillingUp
+      annotations:
+        description: "Sonar Team, elevated backlog levels detected in Pulsar topic: '{{`{{`}} $labels.topic {{`}}`}}', namespace: '{{`{{`}} $labels.exported_namespace {{`}}`}}'. Suspected consumption process anomaly. please investigate immediately to ensure operational stability."
+        summary: Sonar team, backlog of topic in internal namespace filling up.
+      expr: |-
+        sum(
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) > {{ .Values.pulsar.backlog.IngestersThreshold }}) 
+            and 
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.Sonar.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.Sonar.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) < 10000000000)
+        ) by (exported_namespace, topic)
+      for: 5m
+      labels:
+        team: sonar
+        app: pulsar
+
+    - alert: LightHouseESBacklogIsFillingUp
+      annotations:
+        description: "LightHouse Team, elevated backlog levels detected in Pulsar topic: '{{`{{`}} $labels.topic {{`}}`}}', namespace: '{{`{{`}} $labels.exported_namespace {{`}}`}}'. Suspected consumption process anomaly. please investigate immediately to ensure operational stability."
+        summary: LightHouse team, backlog of topic in internal namespace filling up.
+      expr: |-
+        sum(
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) > {{ .Values.pulsar.backlog.IngestersThreshold }}) 
+            and 
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.eventSourcing.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.eventSourcing.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) < 10000000000)
+        ) by (exported_namespace, topic)
+      for: 5m
+      labels:
+        team: lighthouse
+        app: pulsar
+
+    - alert: LightHouseInternalBacklogIsFillingUp
+      annotations:
+        description: "LightHouse Team, elevated backlog levels detected in Pulsar topic: '{{`{{`}} $labels.topic {{`}}`}}', namespace: '{{`{{`}} $labels.exported_namespace {{`}}`}}'. Suspected consumption process anomaly. please investigate immediately to ensure operational stability."
+        summary: LightHouse team, backlog of topic in internal namespace filling up.
+      expr: |-
+        sum(
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) > {{ .Values.pulsar.backlog.IngestersThreshold }}) 
+            and 
+            (rate(pulsar_rate_in{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) / 
+            rate(pulsar_rate_out{exported_namespace=~".*{{ .Values.pulsar.backlog.LightHouse.internal.exportedNamespace }}.*", topic=~"{{- range $i, $topic := .Values.pulsar.backlog.LightHouse.internal.topics -}}{{- if $i -}}|{{- end -}}.*{{ $topic }}.*{{- end -}}"}[5m]) < 10000000000)
+        ) by (exported_namespace, topic)
+      for: 5m
+      labels:
+        team: lighthouse
+        app: pulsar
+
+    - alert: LightHouseUNSBacklogIsFillingUp
+      annotations:
+        description: "LightHouse team, UNS backlog is filling up for topic: '{{`{{`}} $labels.topic {{`}}`}}', Namespace '{{`{{`}} $labels.exported_namespace {{`}}`}}'."
+        summary: New message in Dead Letter Queue - UNS
+      expr: |-
+        sum(
+            (rate(pulsar_rate_in{exported_namespace=~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}"}[3h]) / 
+            rate(pulsar_rate_out{exported_namespace=~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}"}[3h]) > {{ .Values.pulsar.backlog.UNSThreshold }}) 
+            and 
+            (rate(pulsar_rate_in{exported_namespace=~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}"}[3h]) / 
+            rate(pulsar_rate_out{exported_namespace=~"{{ .Values.pulsar.backlog.LightHouse.usersNotificationService.exportedNamespace }}"}[3h]) < 10000000000)
+        ) by (exported_namespace, topic)
+      for: 10m
+      labels:
+        team: lighthouse
+        app: pulsar
+
+{{- end }}

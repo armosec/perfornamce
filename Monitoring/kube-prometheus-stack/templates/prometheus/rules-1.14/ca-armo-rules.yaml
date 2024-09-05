@@ -1,0 +1,213 @@
+{{- /*
+Generated from 'ca-armo-rules' group from https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/main/manifests/kubernetesControlPlane-prometheusRule.yaml
+Do not change in-place! In order to change this file first read following link:
+https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack/hack
+*/ -}}
+{{- $kubeTargetVersion := default .Capabilities.KubeVersion.GitVersion .Values.kubeTargetVersionOverride }}
+{{- if and (semverCompare ">=1.14.0-0" $kubeTargetVersion) (semverCompare "<9.9.9-9" $kubeTargetVersion) .Values.defaultRules.create .Values.defaultRules.rules.kubernetesResources }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ printf "%s-%s" (include "kube-prometheus-stack.fullname" .) "ca-armo-rules" | trunc 63 | trimSuffix "-" }}
+  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  labels:
+    app: {{ template "kube-prometheus-stack.name" . }}
+{{ include "kube-prometheus-stack.labels" . | indent 4 }}
+{{- if .Values.defaultRules.labels }}
+{{ toYaml .Values.defaultRules.labels | indent 4 }}
+{{- end }}
+{{- if .Values.defaultRules.annotations }}
+  annotations:
+{{ toYaml .Values.defaultRules.annotations | indent 4 }}
+{{- end }}
+spec:
+  groups:
+  - name: ca-armo-rules
+    rules:
+    - alert: CPUThrottlingHighKubescape
+      annotations:
+        description: '{{`{{`}} $value | humanizePercentage {{`}}`}} throttling of CPU in namespace {{`{{`}} $labels.namespace {{`}}`}} for container {{`{{`}} $labels.container {{`}}`}} in pod {{`{{`}} $labels.pod {{`}}`}}.'
+        runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/cputhrottlinghigh
+        summary: Processes experience elevated CPU throttling.
+      expr: |-
+        sum(increase(container_cpu_cfs_throttled_periods_total{namespace=~".*kubescape.*", container!~".*aggregator.*", pod!~".*aggregator.*"}[5m])) by (container, pod, namespace)
+          /
+        sum(increase(container_cpu_cfs_periods_total{}[5m])) by (container, pod, namespace)
+          > ( {{ .Values.CPUThrottlingHighThresholdGeneral }} / 100 )
+      for: 15m
+      labels:
+        namespace: kubescape
+        app: kubescape
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+
+    - alert: CPUThrottlingHighGeneral
+      annotations:
+        description: '{{`{{`}} $value | humanizePercentage {{`}}`}} throttling of CPU in namespace {{`{{`}} $labels.namespace {{`}}`}} for container {{`{{`}} $labels.container {{`}}`}} in pod {{`{{`}} $labels.pod {{`}}`}}.'
+        runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/cputhrottlinghigh
+        summary: Processes experience elevated CPU throttling.
+      expr: |-
+        sum(increase(container_cpu_cfs_throttled_periods_total{container!~".*aggregator.*", pod!~".*aggregator.*", namespace!~".*kubescape.*"}[5m])) by (container, pod, namespace)
+          /
+        sum(increase(container_cpu_cfs_periods_total{}[5m])) by (container, pod, namespace)
+          > ( {{ .Values.CPUThrottlingHighThresholdGeneral }} / 100 )
+      for: 15m
+      labels:
+        severity: info
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+
+    - alert: CPUThrottlingHighAggregator
+      annotations:
+        description: '{{`{{`}} $value | humanizePercentage {{`}}`}} throttling of CPU in namespace {{`{{`}} $labels.namespace {{`}}`}} for container {{`{{`}} $labels.container {{`}}`}} in pod {{`{{`}} $labels.pod {{`}}`}}.'
+        runbook_url: {{ .Values.defaultRules.runbookUrl }}/kubernetes/cputhrottlinghigh
+        summary: Processes experience elevated CPU throttling of aggregators.
+      expr: |-
+        sum(increase(container_cpu_cfs_throttled_periods_total{container=~".*aggregator.*", pod=~".*aggregator.*"}[5m])) by (container, pod, namespace)
+          /
+        sum(increase(container_cpu_cfs_periods_total{}[5m])) by (container, pod, namespace)
+          > ( {{ .Values.CPUThrottlingHighThresholdAggregator }} / 100 )
+      for: 15m
+      labels:
+        severity: info
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RedisRawReportsWarning
+      annotations:
+        description: 'Redis raw RAM is higher than 1024 MB: {{ "{{" }} $value | printf "%.0f" }} MB '
+        summary: Redis-raw RAM warning.
+      expr: |-
+        sum(container_memory_working_set_bytes{pod="ca-redis-raw-reports-0", namespace="ca-production"}) / 1048576 / 2 > 1024
+      for: 15m
+      labels:
+        severity: warning
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RedisRawReportsCritical
+      annotations:
+        description: 'Redis raw RAM is higher than 2048 MB: {{ "{{" }} $value | printf "%.0f" }} MB '
+        summary: Redis-raw RAM warning.
+      expr: |-
+        sum(container_memory_working_set_bytes{pod="ca-redis-raw-reports-0", namespace="ca-production"}) / 1048576 / 2 > 2048
+      for: 5m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RedisAggregatedWarning
+      annotations:
+        description: 'Redis Aggregated RAM is higher than 1024 MB: {{ "{{" }} $value | printf "%.0f" }} MB  '
+        summary: Redis Aggregated RAM warning.
+      expr: |-
+        sum(container_memory_working_set_bytes{pod="ca-redis-aggregared-0", namespace="ca-production"}) / 1048576 / 2 > 1024
+      for: 15m
+      labels:
+        severity: warning
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RedisAggregatedCritical
+      annotations:
+        description: 'Redis Aggregated RAM is higher than 2048 MB: {{ "{{" }} $value | printf "%.0f" }} MB '
+        summary: Redis Aggregated warning.
+      expr: |-
+        sum(container_memory_working_set_bytes{pod="ca-redis-aggregared-0", namespace="ca-production"}) / 1048576 / 2 > 2048
+      for: 5m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RDSFreeableMemoryCritical
+      annotations:
+        description: 'RDS RAM is lower than 512 MB: {{ "{{" }} $value | printf "%.0f" }} MB '
+        summary: RDS Memory warning.
+      expr: |-
+        aws_rds_freeable_memory_average{dimension_DBInstanceIdentifier=~".*postgresql.*"} < 512*1024*1024
+      for: 5m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RDSDatabaseConnectionsCritical
+      annotations:
+        description: 'RDS Database Connection is higher than 1000: {{ "{{" }} $value | printf "%.0f" }} MB '
+        summary: RDS Connection warning.
+      expr: |-
+        aws_rds_database_connections_average{dimension_DBInstanceIdentifier=~".*postgresql.*"} > 1000
+      for: 1m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RDSDatabaseConnectionsSpikeCritical
+      annotations:
+        description: 'Possible DDoS Alert: RDS Database Connection Attempts Spike: {{ "{{" }} $value | printf "%.0f" }} times higher than 1 hour ago'
+        summary: RDS Connection Spike Critical.
+      expr: |-
+        aws_rds_database_connections_average{dimension_DBInstanceIdentifier=~".*postgresql.*"} / aws_rds_database_connections_average{dimension_DBInstanceIdentifier=~".*postgresql.*"} offset 1h > 10
+      for: 2m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RDSCPUUtilizationCritical
+      annotations:
+        description: 'High CPU Utilization Alert: RDS CPU usage exceeds 95%: {{ "{{" }} $value | printf "%.2f" }}%'
+        summary: RDS CPUUtilization warning.
+      expr: |-
+        aws_rds_cpuutilization_average{dimension_DBInstanceIdentifier=~".*postgresql.*"} > 95
+      for: 5m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: FreeStorageSpace
+      annotations:
+        description: 'Critical Storage Space Alert: RDS Free Storage Space falls below 50 GB. Current storage: {{`{{ $value }}`}} GB'
+        summary: RDS Storage Space warning.
+      expr: |
+        (
+          aws_rds_free_storage_space_average{dimension_DBInstanceIdentifier=~".*postgresql.*"}
+          / (1024 * 1024 * 1024)
+        ) < 50
+      for: 3m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RDSReadLatencyWarning
+      annotations:
+        description: 'High Read Latency Alert: RDS Read Latency exceeds 250 ms: {{ "{{" }} $value | printf "%.3f" }} ms'
+        summary: RDS Read Latency warning.
+      expr: |-
+        aws_rds_read_latency_average{dimension_DBInstanceIdentifier=~".*postgresql.*"} > 0.250
+      for: 5m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+    - alert: RDSWriteLatencyWarning
+      annotations:
+        description: 'High Write Latency Alert: RDS Write Latency exceeds 250 ms: {{ "{{" }} $value | printf "%.3f" }} ms'
+        summary: RDS Write Latency warning.
+      expr: |-
+        aws_rds_write_latency_average{dimension_DBInstanceIdentifier=~".*postgresql.*"} > 0.250
+      for: 5m
+      labels:
+        severity: critical
+{{- if .Values.defaultRules.additionalRuleLabels }}
+{{ toYaml .Values.defaultRules.additionalRuleLabels | indent 8 }}
+{{- end }}
+{{- end }}

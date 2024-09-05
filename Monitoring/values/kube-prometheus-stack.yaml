@@ -1,0 +1,238 @@
+
+## Create default rules for monitoring the cluster
+##
+defaultRules:
+  create: true
+  # disabled:
+  #   KubeHpaMaxedOut: true
+  rules:
+    alertmanager: true
+    etcd: false
+    configReloaders: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: false
+    # kubeApiserver: false
+    kubeApiserverError: false
+    kubeApiserverSlos: false
+    kubelet: true
+    kubePrometheusGeneral: true
+    kubePrometheusNodeAlerting: true
+    kubePrometheusNodeRecording: true
+    kubernetesAbsent: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeStateMetrics: true
+    network: true
+    node: true
+    prometheus: true
+    prometheusOperator: true
+    time: true
+    kubeApiserverBurnrate: false
+    kubeApiserverHistogram: false
+    kubeControllerManager: false
+
+grafana:
+  enabled: true
+  persistence:
+    type: pvc
+    enabled: true
+    storageClassName: gp2
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    # annotations: {}
+    finalizers:
+      - kubernetes.io/pvc-protection
+    # selectorLabels: {}
+    # subPath: ""
+    # existingClaim:
+
+  grafana.ini:
+    feature_toggles:
+      enable: tempoSearch tempoBackendSearch
+
+  ## Deploy default dashboards.
+  ##
+  defaultDashboardsEnabled: true
+
+  adminPassword: "eDFzs47hgB9ouX1mU"
+
+  ingress:
+    ## If true, Grafana Ingress will be created
+    ##
+    enabled: True
+
+    ## Annotations for Grafana Ingress
+    ##
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/issuer: "letsencrypt-prod"
+
+    ## Labels to be added to the Ingress
+    ##
+    labels: {}
+
+    ## Hostnames.
+    ## Must be provided if Ingress is enable.
+    ##
+    # hosts:
+    #   - grafana.domain.com
+    hosts:
+    - grafmon.cademo.cyberarmorsoft.com
+
+    ## Path for grafana ingress
+    path: /
+
+    ## TLS configuration for grafana Ingress
+    ## Secret must be manually created in the namespace
+    ##
+    tls:
+    # - secretName: grafana-general-tls
+    #   hosts:
+    #   - grafana.cademo.cyberarmorsoft.com
+    - hosts:
+      - grafmon.cademo.cyberarmorsoft.com
+      secretName: grafana-service-tls
+
+  additionalDataSources:
+    - name: loki
+      access: proxy
+      type: loki
+      url: http://loki.logging.svc.cluster.local:3100/
+
+prometheus:
+
+  prometheusSpec:
+    ## Prometheus StorageSpec for persistent data
+    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/user-guides/storage.md
+    ##
+
+    resources: {}
+      # limits:
+      #   cpu: 4
+      #   memory: 7500Mi
+      # requests:
+      #   cpu: 2
+      #   memory: 4Gi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 100Gi
+
+    retentionSize: 80GiB
+    retention: 30d
+
+    podMonitorSelector: {}
+
+    enableAdminAPI: true
+
+    ## Interval between consecutive scrapes.
+    ## Defaults to 30s.
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/release-0.44/pkg/prometheus/promcfg.go#L180-L183
+    ##
+    scrapeInterval: "10s"
+
+    externalLabels:
+      cluster: ""
+
+
+alertmanager:
+
+  alertmanagerSpec:
+    useExistingSecret: true
+    configSecret: armoalertmanager
+    externalUrl: "https://grafmon.cademo.cyberarmorsoft.com "
+
+    ## Size is the expected size of the alertmanager cluster. The controller will eventually make the size of the
+    ## running cluster equal to the expected size.
+    replicas: 2
+
+## Component scraping the kube controller manager
+##
+kubeControllerManager:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+CPUThrottlingHighThresholdGeneral: 60
+CPUThrottlingHighThresholdAggregator: 90
+
+pulsar:
+  dlq:
+    LightHouse:
+      usersNotificationService:
+        exportedNamespace: "ca-.*-messages/users-notification"
+
+      eventSourcing:
+        exportedNamespace: "armo/event-sourcing"
+        topics:
+        - kubescape-report-v2
+        - registry-repositories-v1
+        - user-input
+
+      internal:
+        exportedNamespace: "armo/internal"
+        topics:
+        - user-output
+
+    Sonar:
+      eventSourcing:
+        exportedNamespace: "armo/event-sourcing"
+        topics:
+        - attack-chain-scan-state-v1
+        - attack-chain-viewed-v1
+        - attack-chain-delete-v1
+
+      internal:
+        exportedNamespace: "armo/internal"
+        topics:
+        - kubescape-scan-report-finished-v1
+        - container-scan-report-finished-v1
+
+  backlog:
+    IngestersThreshold: 1.1
+    UNSThreshold: 1.5
+
+    LightHouse:
+      usersNotificationService:
+        exportedNamespace: "ca-.*-messages/users-notification"
+
+      eventSourcing:
+        exportedNamespace: "armo/event-sourcing"
+        topics:
+        - kubescape-report-v2
+        - registry-repositories-v1
+        - user-input
+
+      internal:
+        exportedNamespace: "armo/internal"
+        topics:
+        - user-output
+
+    Sonar:
+      eventSourcing:
+        exportedNamespace: "armo/event-sourcing"
+        topics:
+        - attack-chain-scan-state-v1
+        - attack-chain-viewed-v1
+        - attack-chain-delete-v1
+
+      internal:
+        exportedNamespace: "armo/internal"
+        topics:
+        - kubescape-scan-report-finished-v1
+        - container-scan-report-finished-v1

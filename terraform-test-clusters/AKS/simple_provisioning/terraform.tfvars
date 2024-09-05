@@ -1,0 +1,12 @@
+# appId    = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+# password = "********-****-****-****-************"
+cluster_owner   = "test-matan"                     ## Put you name here
+subscription_id = "05fed2cc-041d-4c53-b4b8-a1aa128d189f" ## Azure subscription ID that you have permmsion to use
+# kubernetes_version = "1.24.9"                          ## AKS Kubernetes version
+region            = "North Europe"                       ## Rsource group and AKS cluster region
+node_count        = 3                                    ## Worker node number
+machine_type      = "Standard_B2ms"                      ## Machine type for AKS worker nodes
+zones             = ["1", "2", "3"]                      ## The availiabilty zones - type: list(strings)
+spot_node_count   = 10                                   ## Spot node pool - worker node number
+spot_machine_type = "Standard_B2ms"                      ## Machine type for the spot node pool
+spot_max_price    = "0.05"                               ## Maximum price for spot machine

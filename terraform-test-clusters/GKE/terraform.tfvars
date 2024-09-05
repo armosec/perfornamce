@@ -1,0 +1,11 @@
+kubernetes_version = "latest"
+cluster_type = "test"
+cluster_name_suffix = "<YOUR_NAME_HERE>"
+region = "me-west1"
+network = "default"
+subnetwork = "default"
+ip_range_pods = ""
+ip_range_services = ""
+node_count = 1
+# project_id = 
+# compute_engine_service_account = 
