@@ -163,7 +163,7 @@ def apply_microservices_demo(namespaces):
 
 
 # Step 2: Deploy Kubescape using Helm
-def deploy_kubescape(account, accessKey, version=None, enable_kdr=False):
+def deploy_kubescape(account: str, accessKey: str, version:str =None, enable_kdr: bool = False, additional_helm_command: str = None):
     try:
         print("Adding Kubescape Helm repository...")
         run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
@@ -199,10 +199,15 @@ def deploy_kubescape(account, accessKey, version=None, enable_kdr=False):
         time.sleep(30)  # Wait for the operator to deploy
         print("waiting for operator to deploy - 30 sec")
         print("Kubescape Operator deployed successfully.")
+        if additional_helm_command:
+            print("Deploying additional Helm chart...", additional_helm_command)
+            run_command(additional_helm_command)
+            print("Additional Helm chart deployed successfully.")
+
     except subprocess.CalledProcessError as e:
         print(f"Failed to deploy Kubescape with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
-        exit(1)        
+        exit(1)
 
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
@@ -315,6 +320,7 @@ def main():
     parser.add_argument('-destroy', action='store_true', help="Destroy the Terraform-managed infrastructure")
     parser.add_argument('-skip-cluster', action='store_true', help="Skip cluster creation and connection")
     parser.add_argument('-version', type=str, help="Specify the Helm chart version for Kubescape")
+    parser.add_argument('-additional-helm-command', type=str, help="Additional helm command")
 
     args = parser.parse_args()
     
@@ -344,7 +350,8 @@ def main():
     apply_microservices_demo(namespaces)
     
     # Step 3: Deploy Kubescape using Helm
-    deploy_kubescape(account=args.account, accessKey=args.accessKey, version=args.version, enable_kdr=args.kdr)
+    deploy_kubescape(account=args.account, accessKey=args.accessKey, version=args.version, enable_kdr=args.kdr, 
+    additional_helm_command=args.additional_helm_command) 
 
     # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()
