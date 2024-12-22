@@ -23,10 +23,6 @@ on:
         type: number
         default: 3
         required: true
-      VPC_UUID:
-        description: 'UUID of the VPC network'
-        type: string
-        required: true
       KUBERNETES_VERSION:
         description: 'Kubernetes version to use'
         type: string
