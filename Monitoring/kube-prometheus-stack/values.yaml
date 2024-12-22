@@ -2986,12 +2986,13 @@ prometheus:
     ## prometheus resource to be created with selectors based on values in the helm deployment,
     ## which will also match the PrometheusRule resources created
     ##
-    ruleSelectorNilUsesHelmValues: true
+    # ruleSelectorNilUsesHelmValues: true
 
     ## PrometheusRules to be selected for target discovery.
     ## If {}, select all PrometheusRules
     ##
-    ruleSelector: {}
+    ruleSelector:
+      matchLabels: null
     ## Example which select all PrometheusRules resources
     ## with label "prometheus" with values any of "example-rules" or "example-rules-2"
     # ruleSelector:
@@ -3011,12 +3012,13 @@ prometheus:
     ## prometheus resource to be created with selectors based on values in the helm deployment,
     ## which will also match the servicemonitors created
     ##
-    serviceMonitorSelectorNilUsesHelmValues: true
+    # serviceMonitorSelectorNilUsesHelmValues: true
 
     ## ServiceMonitors to be selected for target discovery.
     ## If {}, select all ServiceMonitors
     ##
-    serviceMonitorSelector: {}
+    serviceMonitorSelector:
+      matchLabels: null
     ## Example which selects ServiceMonitors with label "prometheus" set to "somelabel"
     # serviceMonitorSelector:
     #   matchLabels:
@@ -3034,12 +3036,13 @@ prometheus:
     ## prometheus resource to be created with selectors based on values in the helm deployment,
     ## which will also match the podmonitors created
     ##
-    podMonitorSelectorNilUsesHelmValues: false
+    # podMonitorSelectorNilUsesHelmValues: false
 
     ## PodMonitors to be selected for target discovery.
     ## If {}, select all PodMonitors
     ##
-    podMonitorSelector: {}
+    podMonitorSelector:
+      matchLabels: {}
     ## Example which selects PodMonitors with label "prometheus" set to "somelabel"
     # podMonitorSelector:
     #   matchLabels:
@@ -3056,12 +3059,13 @@ prometheus:
     ## prometheus resource to be created with selectors based on values in the helm deployment,
     ## which will also match the probes created
     ##
-    probeSelectorNilUsesHelmValues: true
+    # probeSelectorNilUsesHelmValues: true
 
     ## Probes to be selected for target discovery.
     ## If {}, select all Probes
     ##
-    probeSelector: {}
+    probeSelector: 
+      matchLabels: null
     ## Example which selects Probes with label "prometheus" set to "somelabel"
     # probeSelector:
     #   matchLabels:
@@ -3078,12 +3082,13 @@ prometheus:
     ## prometheus resource to be created with selectors based on values in the helm deployment,
     ## which will also match the scrapeConfigs created
     ##
-    scrapeConfigSelectorNilUsesHelmValues: true
+    # scrapeConfigSelectorNilUsesHelmValues: true
 
     ## scrapeConfigs to be selected for target discovery.
     ## If {}, select all scrapeConfigs
     ##
-    scrapeConfigSelector: {}
+    scrapeConfigSelector: 
+      matchLabels: null
     ## Example which selects scrapeConfigs with label "prometheus" set to "somelabel"
     # scrapeConfig:
     #   matchLabels:
@@ -3812,12 +3817,13 @@ thanosRuler:
     ## prometheus resource to be created with selectors based on values in the helm deployment,
     ## which will also match the PrometheusRule resources created
     ##
-    ruleSelectorNilUsesHelmValues: true
+    # ruleSelectorNilUsesHelmValues: true
 
     ## PrometheusRules to be selected for target discovery.
     ## If {}, select all PrometheusRules
     ##
-    ruleSelector: {}
+    ruleSelector:
+      matchLabels: {}
     ## Example which select all PrometheusRules resources
     ## with label "prometheus" with values any of "example-rules" or "example-rules-2"
     # ruleSelector:

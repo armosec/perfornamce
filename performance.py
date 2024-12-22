@@ -69,6 +69,28 @@ def deploy_kube_prometheus_stack():
         print(f"Failed to deploy kube-prometheus-stack with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
         exit(1)
+        
+def deploy_pyroscope():
+    try:
+        # Define paths relative to the script's directory
+        values_file = "./Monitoring/pyroscope/dev-env-values.yaml"
+        chart_path = "./Monitoring/pyroscope"
+
+        # Construct the Helm command
+        helm_command = (
+            f"helm upgrade --install pyroscope "
+            f"-f {values_file} "
+            f"{chart_path} "
+            f"-n monitoring --create-namespace"
+        )
+        # Run the command
+        print("Deploying Pyroscope using Helm...")
+        run_command(helm_command)
+        print("Pyroscope deployed successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to deploy Pyroscope with exit code {e.returncode}")
+        print(f"Error output:\n{e.stderr}")
+        exit(1)
 
         
 def create_namespace(namespace_name):
@@ -119,16 +141,16 @@ def create_parallel_namespaces(node_count, skip_cluster=False):
         print(f"Error output:\n{e.stderr}")
         exit(1)
 
-# def apply_microservices_demo(namespaces):
-#     microservices_demo_path = os.path.join("microservices-demo", "release", "kubernetes-manifests.yaml")
-#     for namespace in namespaces:
-#         print(f"Applying microservices-demo to namespace {namespace}...")
-#         try:
-#             run_command(f'kubectl apply -f {microservices_demo_path} -n {namespace}')
-#             print(f"Successfully applied microservices-demo to namespace {namespace}.")
-#         except subprocess.CalledProcessError as e:
-#             print(f"Failed to apply microservices-demo to namespace {namespace}: {e}")
-#             exit(1)
+def apply_microservices_demo(namespaces):
+    microservices_demo_path = os.path.join("microservices-demo", "release", "kubernetes-manifests.yaml")
+    for namespace in namespaces:
+        print(f"Applying microservices-demo to namespace {namespace}...")
+        try:
+            run_command(f'kubectl apply -f {microservices_demo_path} -n {namespace}')
+            print(f"Successfully applied microservices-demo to namespace {namespace}.")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to apply microservices-demo to namespace {namespace}: {e}")
+            exit(1)
 
 # Function to run kubectl apply for a single namespace
 def apply_microservices_demo_to_namespace(namespace, microservices_demo_path):
@@ -163,7 +185,7 @@ def apply_microservices_demo(namespaces):
 
 
 # Step 2: Deploy Kubescape using Helm
-def deploy_kubescape(account, accessKey, version=None, enable_kdr=False):
+def deploy_kubescape(account: str, accessKey: str, version:str =None, enable_kdr: bool = False, additional_helm_command: str = None):
     try:
         print("Adding Kubescape Helm repository...")
         run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
@@ -192,6 +214,10 @@ def deploy_kubescape(account, accessKey, version=None, enable_kdr=False):
                 '--set capabilities.nodeProfileService=enable '
                 '--set alertCRD.scopeClustered=true '
                 '--set alertCRD.installDefault=true'
+                # '--set nodeAgent.image.tag=v0.2.152'
+                # '--set storage.image.repository=quay.io/matthiasb_1/storage'
+                # '--set storage.image.tag=ratelim'
+                
             )
             helm_command += ' ' + additional_params
         
@@ -199,10 +225,15 @@ def deploy_kubescape(account, accessKey, version=None, enable_kdr=False):
         time.sleep(30)  # Wait for the operator to deploy
         print("waiting for operator to deploy - 30 sec")
         print("Kubescape Operator deployed successfully.")
+        if additional_helm_command:
+            print("Deploying additional Helm chart...", additional_helm_command)
+            run_command(additional_helm_command)
+            print("Additional Helm chart deployed successfully.")
+
     except subprocess.CalledProcessError as e:
         print(f"Failed to deploy Kubescape with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
-        exit(1)        
+        exit(1)
 
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
@@ -315,6 +346,7 @@ def main():
     parser.add_argument('-destroy', action='store_true', help="Destroy the Terraform-managed infrastructure")
     parser.add_argument('-skip-cluster', action='store_true', help="Skip cluster creation and connection")
     parser.add_argument('-version', type=str, help="Specify the Helm chart version for Kubescape")
+    parser.add_argument('-additional-helm-command', type=str, help="Additional helm command")
 
     args = parser.parse_args()
     
@@ -340,11 +372,16 @@ def main():
     
     # Deploy prometheus and microservices demo
     deploy_kube_prometheus_stack()
+    deploy_pyroscope()
+    
+    # Step 3: Deploy Kubescape using Helm
+    deploy_kubescape(account=args.account, accessKey=args.accessKey, version=args.version, enable_kdr=args.kdr, 
+    additional_helm_command=args.additional_helm_command) 
+    
+    # time.sleep(59)  # Wait for the operator to deploy
     namespaces = create_parallel_namespaces(node_count)
     apply_microservices_demo(namespaces)
     
-    # Step 3: Deploy Kubescape using Helm
-    deploy_kubescape(account=args.account, accessKey=args.accessKey, version=args.version, enable_kdr=args.kdr)
 
     # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()

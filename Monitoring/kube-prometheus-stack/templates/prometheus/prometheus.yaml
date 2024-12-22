@@ -156,7 +156,7 @@ spec:
 {{- if .Values.prometheus.prometheusSpec.serviceMonitorSelector }}
   serviceMonitorSelector:
 {{ tpl (toYaml .Values.prometheus.prometheusSpec.serviceMonitorSelector | indent 4) . }}
-{{ else if .Values.prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues  }}
+{{ else if .Values.prometheus.prometheusSpec.serviceMonitorSelector.matchLabels  }}
   serviceMonitorSelector:
     matchLabels:
       release: {{ $.Release.Name | quote }}
@@ -172,7 +172,7 @@ spec:
 {{- if .Values.prometheus.prometheusSpec.podMonitorSelector }}
   podMonitorSelector:
 {{ tpl (toYaml .Values.prometheus.prometheusSpec.podMonitorSelector | indent 4) . }}
-{{ else if .Values.prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues  }}
+{{ else if .Values.prometheus.prometheusSpec.podMonitorSelector.matchLabels  }}
   podMonitorSelector:
     matchLabels:
       release: {{ $.Release.Name | quote }}
@@ -188,7 +188,7 @@ spec:
 {{- if .Values.prometheus.prometheusSpec.probeSelector }}
   probeSelector:
 {{ tpl (toYaml .Values.prometheus.prometheusSpec.probeSelector | indent 4) . }}
-{{ else if .Values.prometheus.prometheusSpec.probeSelectorNilUsesHelmValues  }}
+{{ else if .Values.prometheus.prometheusSpec.probeSelector.matchLabels  }}
   probeSelector:
     matchLabels:
       release: {{ $.Release.Name | quote }}
@@ -233,7 +233,7 @@ spec:
 {{- if .Values.prometheus.prometheusSpec.ruleSelector }}
   ruleSelector:
 {{ tpl (toYaml .Values.prometheus.prometheusSpec.ruleSelector | indent 4) . }}
-{{- else if .Values.prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues }}
+{{- else if .Values.prometheus.prometheusSpec.ruleSelector.matchLabels }}
   ruleSelector:
     matchLabels:
       release: {{ $.Release.Name | quote }}
@@ -244,7 +244,7 @@ spec:
 {{- if .Values.prometheus.prometheusSpec.scrapeConfigSelector }}
   scrapeConfigSelector:
 {{ tpl (toYaml .Values.prometheus.prometheusSpec.scrapeConfigSelector | indent 4) . }}
-{{ else if .Values.prometheus.prometheusSpec.scrapeConfigSelectorNilUsesHelmValues  }}
+{{ else if .Values.prometheus.prometheusSpec.scrapeConfigSelector.matchLabels  }}
   scrapeConfigSelector:
     matchLabels:
       release: {{ $.Release.Name | quote }}

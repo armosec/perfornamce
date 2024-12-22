@@ -57,7 +57,7 @@ spec:
 {{- if .Values.thanosRuler.thanosRulerSpec.ruleSelector }}
   ruleSelector:
 {{ tpl (toYaml .Values.thanosRuler.thanosRulerSpec.ruleSelector | indent 4) .}}
-{{- else if .Values.thanosRuler.thanosRulerSpec.ruleSelectorNilUsesHelmValues }}
+{{- else if .Values.thanosRuler.thanosRulerSpec.ruleSelector.matchLabels }}
   ruleSelector:
     matchLabels:
       release: {{ $.Release.Name | quote }}

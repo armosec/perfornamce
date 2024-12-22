@@ -34,10 +34,12 @@ serviceAccount:
   nameTest:
   ## ServiceAccount labels.
   labels: {}
-## Service account annotations. Can be templated.
-#  annotations:
-#    eks.amazonaws.com/role-arn: arn:aws:iam::123456789000:role/iam-role-name-here
-  autoMount: true
+ ## Service account annotations. Can be templated.
+  #  annotations:
+  #    eks.amazonaws.com/role-arn: arn:aws:iam::123456789000:role/iam-role-name-here
+  ## autoMount is deprecated in favor of automountServiceAccountToken
+  # autoMount: true
+  automountServiceAccountToken: true
 
 replicas: 1
 
@@ -793,7 +795,7 @@ smtp:
 sidecar:
   image:
     repository: quay.io/kiwigrid/k8s-sidecar
-    tag: 1.24.6
+    tag: 1.28.0
     sha: ""
   imagePullPolicy: IfNotPresent
   resources: {}
