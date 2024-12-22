@@ -4,35 +4,13 @@
 # s-8vcpu-16gb: 8 vCPUs, 16 GB RAM
 # s-16vcpu-32gb: 16 vCPUs, 32 GB RAM
 
-variable "node_size" {
-  description = "Size of the nodes"
-  type        = string
-  default     = "s-4vcpu-8gb"
-}
-
-variable "node_count" {
-  description = "Number of nodes in the default node pool"
-  type        = number
-  default     = 2
-}
-
-variable "min_nodes" {
-  description = "Minimum number of nodes for auto-scaling"
-  type        = number
-  default     = 2
-}
-
-variable "max_nodes" {
-  description = "Maximum number of nodes for auto-scaling"
-  type        = number
-  default     = 2
-}
+# terraform apply -var="k8s_version=${{ github.event.inputs.K8s-ver }}" " 
 
 module "vpc" {
   source = "git::ssh://git@github.com/armosec/armo-terraform-modules//do-modules/vpc?ref=main"
   vpc_name   = "performance"
   region     = "fra1"
-  cidr_block = "10.222.0.0/16"
+  cidr_block = "10.111.0.0/16"
 }
 
 module "k8s-cluster" {
@@ -47,11 +25,11 @@ module "k8s-cluster" {
   node_size      = var.node_size
   node_count     = var.node_count
   auto_scale     = false
-  min_nodes      = var.min_nodes
-  max_nodes      = var.max_nodes
-  default_node_pool_labels = {
-    "arc-node-group" = "default"
-  }
+  min_nodes      = var.node_count
+  max_nodes      = var.node_count
+#  default_node_pool_labels = {
+#    "arc-node-group" = "default"
+#  }
 }
 
 module "gh-runners" {

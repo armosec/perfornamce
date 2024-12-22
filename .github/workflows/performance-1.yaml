@@ -1,0 +1,68 @@
+name: Setup DigitalOcean K8s Cluster
+
+on:
+  workflow_dispatch:
+    inputs:
+      CLUSTER_NAME:
+        description: 'Name of the Kubernetes cluster'
+        type: string
+        default: 'perfo-cluster'
+        required: true
+      NODE_SIZE:
+        description: 'Size of the nodes'
+        options:
+          - s-2vcpu-2gb
+          - s-4vcpu-8gb
+          - s-8vcpu-16gb
+          - s-16vcpu-32gb
+        type: choice
+        default: s-4vcpu-8gb
+        required: true
+      NODE_COUNT:
+        description: 'Number of nodes'
+        type: number
+        default: 3
+        required: true
+      VPC_UUID:
+        description: 'UUID of the VPC network'
+        type: string
+        required: true
+      KUBERNETES_VERSION:
+        description: 'Kubernetes version to use'
+        type: string
+        default: '1.31'
+        required: true
+
+jobs:
+  setup-cluster:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install kubectl
+        run: |
+          sudo snap install kubectl --classic
+          kubectl version --client --output=yaml
+
+      - name: Install doctl
+        run: |
+          sudo snap install doctl
+          doctl version
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Create Kubernetes Cluster
+        run: |
+          doctl kubernetes cluster create ${{ github.event.inputs.CLUSTER_NAME }} \
+            --region fra1 \
+            --version ${{ github.event.inputs.KUBERNETES_VERSION }} \
+            --vpc-uuid 7ff72b70-98a3-4743-9e83-2f0131047d39 \
+            --node-pool "name=default-pool;size=${{ github.event.inputs.NODE_SIZE }};count=${{ github.event.inputs.NODE_COUNT }}" \
+            --wait
+
+      - name: Configure kubectl
+        run: |
+          doctl kubernetes cluster kubeconfig save ${{ github.event.inputs.CLUSTER_NAME }}
+          kubectl config set-context $(kubectl config current-context) --namespace=default
