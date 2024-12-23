@@ -202,7 +202,7 @@ def deploy_kubescape(account: str, accessKey: str, version:str =None, enable_kdr
             f'--set accessKey={accessKey} '
             f'--set server=api.armosec.io '
             f'--set nodeAgent.env[0].name=PYROSCOPE_SERVER_SVC '
-            f'--set nodeAgent.env[0].value=http://pyroscope-distributor.pyroscope.svc.cluster.local:4040'
+            f'--set nodeAgent.env[0].value=http://pyroscope-query-frontend.monitoring.svc.cluster.local.:4040'
         )
         
         if version:
