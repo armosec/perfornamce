@@ -112,10 +112,10 @@ def create_parallel_namespaces(node_count, skip_cluster=False):
                 check=True, capture_output=True, text=True
             )
             total_nodes = len(result.stdout.splitlines())
-            num_namespaces = (total_nodes - 1) * 2
+            num_namespaces = (total_nodes - 2) * 2
         else:
             # Calculate the number of namespaces to create 
-            num_namespaces = (node_count - 1) * 2
+            num_namespaces = (node_count - 2) * 2
 
         print(f"Creating {num_namespaces} namespaces")
 

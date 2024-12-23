@@ -28,6 +28,14 @@ on:
         type: string
         default: '1.31'
         required: true
+      ACCOUNT_ID:
+        description: 'Your account ID'
+        type: string
+        required: true
+      ACCESS_KEY:
+        description: 'Your access key'
+        type: string
+        required: true
 
 jobs:
   setup-cluster:
@@ -60,3 +68,12 @@ jobs:
         run: |
           doctl kubernetes cluster kubeconfig save ${{ github.event.inputs.CLUSTER_NAME }}
           kubectl config set-context $(kubectl config current-context) --namespace=default
+
+      - name: Connect to the cluster
+        run: |
+          CLUSTER_ID=$(doctl kubernetes cluster get ${{ github.event.inputs.CLUSTER_NAME }} --format ID --no-header)
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+
+      - name: Run performance Test
+        run: |
+          python performance.py -skip-cluster -nodes ${{ github.event.inputs.NODE_COUNT }} -account ${{ github.event.inputs.ACCOUNT_ID }} -access ${{ github.event.inputs.ACCESS_KEY }}
