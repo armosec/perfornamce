@@ -555,7 +555,7 @@ datasources:
     apiVersion: 1
     datasources:
       - name: Pyroscope
-        type: pyroscope
+        type: grafana-pyroscope-datasource
         access: proxy
         url: http://pyroscope-query-frontend.monitoring.svc.cluster.local.:4040
         isDefault: false
