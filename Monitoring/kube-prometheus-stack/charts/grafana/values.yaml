@@ -963,7 +963,8 @@ sidecar:
     # Sets the size limit of the datasource sidecar emptyDir volume
     sizeLimit: {}
   plugins:
-    enabled: false
+    enabled: true
+      - grafana-explore-profiles
     # Additional environment variables for the plugins sidecar
     env: {}
     # Do not reprocess already processed unchanged resources on k8s API reconnect.
