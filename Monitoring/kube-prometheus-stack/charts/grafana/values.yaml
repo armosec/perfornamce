@@ -539,7 +539,8 @@ lifecycleHooks: {}
 
 ## Pass the plugins you want installed as a list.
 ##
-plugins: []
+plugins: 
+  - grafana-pyroscope-app
   # - digrich-bubblechart-panel
   # - grafana-clock-panel
   ## You can also use other plugin download URL, as long as they are valid zip files,
@@ -549,7 +550,15 @@ plugins: []
 ## Configure grafana datasources
 ## ref: http://docs.grafana.org/administration/provisioning/#datasources
 ##
-datasources: {}
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Pyroscope
+        type: pyroscope
+        access: proxy
+        url: http://pyroscope-query-frontend.monitoring.svc.cluster.local.:4040
+        isDefault: false
 #  datasources.yaml:
 #    apiVersion: 1
 #    datasources:
@@ -923,7 +932,7 @@ sidecar:
     # Sets the size limit of the dashboard sidecar emptyDir volume
     sizeLimit: {}
   datasources:
-    enabled: false
+    enabled: true
     # Additional environment variables for the datasourcessidecar
     env: {}
     # Do not reprocess already processed unchanged resources on k8s API reconnect.
