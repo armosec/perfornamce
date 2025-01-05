@@ -16,7 +16,7 @@ on:
           - s-8vcpu-16gb
           - s-16vcpu-32gb
         type: choice
-        default: s-4vcpu-8gb
+        default: s-8vcpu-8gb
         required: true
       NODE_COUNT:
         description: 'Number of nodes'
@@ -94,12 +94,23 @@ jobs:
 
       - name: Run performance Test
         run: |
-          python performance.py \
-            -skip-cluster \
-            -nodes ${{ github.event.inputs.NODE_COUNT }} \
-            -account ${{ github.event.inputs.ACCOUNT_ID }} \
-            -accessKey ${{ github.event.inputs.ACCESS_KEY }} \
-            ${{github.event.inputs.STORAGE_VERSION && "-storage-version ${github.event.inputs.STORAGE_VERSION}"}} \
-            ${{github.event.inputs.NODE_AGENT_VERSION && "-node-agent-version ${github.event.inputs.NODE_AGENT_VERSION}"}} \
-            ${{github.event.inputs.ENABLE_KDR && "-kdr"}} \
-            ${{github.event.inputs.PRIVATE_NODE_AGENT && "-private-node-agent ${github.event.inputs.PRIVATE_NODE_AGENT}"}}
+          CMD="python performance.py -skip-cluster -nodes ${{ github.event.inputs.NODE_COUNT }} -account ${{ github.event.inputs.ACCOUNT_ID }} -accessKey ${{ github.event.inputs.ACCESS_KEY }}"
+
+          if [ ! -z "${{ github.event.inputs.STORAGE_VERSION }}" ]; then
+            CMD="$CMD -storage-version ${{ github.event.inputs.STORAGE_VERSION }}"
+          fi
+          
+          if [ ! -z "${{ github.event.inputs.NODE_AGENT_VERSION }}" ]; then
+            CMD="$CMD -node-agent-version ${{ github.event.inputs.NODE_AGENT_VERSION }}"
+          fi
+          
+          if [ "${{ github.event.inputs.ENABLE_KDR }}" == "true" ]; then
+            CMD="$CMD -kdr"
+          fi
+          
+          if [ ! -z "${{ github.event.inputs.PRIVATE_NODE_AGENT }}" ]; then
+            CMD="$CMD -private-node-agent ${{ github.event.inputs.PRIVATE_NODE_AGENT }}"
+          fi
+
+          echo "Running command: $CMD"
+          eval $CMD
