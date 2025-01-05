@@ -405,7 +405,7 @@ def main():
     deploy_pyroscope()
     
     # Step 3: Deploy Kubescape using Helm
-    deploy_kubescape(account=args.account,
+    deploy_kubescape(
         account=args.account,
         accessKey=args.accessKey,
         version=args.version,
