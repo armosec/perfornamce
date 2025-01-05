@@ -185,7 +185,16 @@ def apply_microservices_demo(namespaces):
 
 
 # Step 2: Deploy Kubescape using Helm
-def deploy_kubescape(account: str, accessKey: str, version:str =None, enable_kdr: bool = False, additional_helm_command: str = None):
+def deploy_kubescape(
+    account: str, 
+    accessKey: str, 
+    version: str = None, 
+    enable_kdr: bool = False, 
+    additional_helm_command: str = None,
+    storage_image_tag: str = None, 
+    node_agent_image_tag: str = None,
+    private_node_agent: str = None
+):
     try:
         print("Adding Kubescape Helm repository...")
         run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
@@ -207,20 +216,34 @@ def deploy_kubescape(account: str, accessKey: str, version:str =None, enable_kdr
         
         if version:
             helm_command += f' --version {version}'
-            
+        
+        # Add storage image repository and tag if provided
+        if storage_image_tag:
+            helm_command += f' --set storage.image.tag={storage_image_tag} --set storage.image.repository=quay.io/kubescape/storage'
+        
+        # Add node agent image repository and tag if provided
+        if node_agent_image_tag:
+            helm_command += f' --set nodeAgent.image.tag={node_agent_image_tag} --set nodeAgent.image.repository=quay.io/kubescape/node-agent'
+        
         # Add the additional Helm parameters if -kdr is enabled
         if enable_kdr:
             additional_params = (
-                '--set capabilities.runtimeDetection=enable '
-                '--set capabilities.malwareDetection=enable '
-                '--set capabilities.nodeProfileService=enable '
-                '--set alertCRD.scopeClustered=true '
-                '--set alertCRD.installDefault=true'
-                # '--set nodeAgent.image.tag=v0.2.152'
-                # '--set storage.image.repository=quay.io/matthiasb_1/storage'
-                # '--set storage.image.tag=ratelim'
-                
+                ' --set alertCRD.installDefault=true ' 
+                ' --set capabilities.manageWorkloads=enable ' 
+                ' --set capabilities.nodeProfileService=enable ' 
+                ' --set capabilities.runtimeDetection=enable ' 
+                ' --set imagePullSecret.password=Q5UMRCFPRAHAIRWAYTOP7P4PK9ZNV2H26JFTB70CMNZ2KG1NHGPYXK6PNPNC677E ' 
+                ' --set imagePullSecret.server=quay.io ' 
+                ' --set imagePullSecret.username=armosec+armosec_ro ' 
+                ' --set imagePullSecrets=armosec-readonly '
+                ' --set nodeAgent.image.repository=quay.io/armosec/node-agent ' 
             )
+            
+            if private_node_agent:
+                additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+            else:
+                additional_params += ' --set nodeAgent.image.tag=v0.0.25 --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+            
             helm_command += ' ' + additional_params
         
         run_command(helm_command)
@@ -236,6 +259,7 @@ def deploy_kubescape(account: str, accessKey: str, version:str =None, enable_kdr
         print(f"Failed to deploy Kubescape with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
         exit(1)
+
 
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
@@ -349,6 +373,10 @@ def main():
     parser.add_argument('-skip-cluster', action='store_true', help="Skip cluster creation and connection")
     parser.add_argument('-version', type=str, help="Specify the Helm chart version for Kubescape")
     parser.add_argument('-additional-helm-command', type=str, help="Additional helm command")
+    parser.add_argument('-storage-version', type=str, help="Specify the storage image version")
+    parser.add_argument('-node-agent-version', type=str, help="Specify the node agent image version")
+    parser.add_argument('-private-node-agent', type=str, help="Specify the private node agent version")
+
 
     args = parser.parse_args()
     
@@ -377,8 +405,16 @@ def main():
     deploy_pyroscope()
     
     # Step 3: Deploy Kubescape using Helm
-    deploy_kubescape(account=args.account, accessKey=args.accessKey, version=args.version, enable_kdr=args.kdr, 
-    additional_helm_command=args.additional_helm_command) 
+    deploy_kubescape(account=args.account,
+        account=args.account,
+        accessKey=args.accessKey,
+        version=args.version,
+        enable_kdr=args.kdr,
+        additional_helm_command=args.additional_helm_command,
+        storage_image_tag=args.storage_version,
+        node_agent_image_tag=args.node_agent_version,
+        private_node_agent=args.private_node_agent
+    ) 
     
     # time.sleep(59)  # Wait for the operator to deploy
     namespaces = create_parallel_namespaces(node_count)
