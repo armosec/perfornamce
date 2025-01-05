@@ -16,7 +16,7 @@ on:
           - s-8vcpu-16gb
           - s-16vcpu-32gb
         type: choice
-        default: s-8vcpu-8gb
+        default: s-8vcpu-16gb
         required: true
       NODE_COUNT:
         description: 'Number of nodes'
