@@ -36,6 +36,24 @@ on:
         description: 'Your access key'
         type: string
         required: true
+      STORAGE_VERSION:
+        description: 'storage version'
+        type: string
+        required: false
+      NODE_AGENT_VERSION:
+        description: 'node agent version'
+        type: string
+        required: false
+      ENABLE_KDR:
+        description: 'Enable KDR'
+        required: false
+        type: boolean
+        default: false
+      PRIVET_NODE_AGENT:
+        description: 'Privet node agent version'
+        required: false
+        type: string
+      
 
 jobs:
   setup-cluster:
