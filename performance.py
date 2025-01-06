@@ -203,6 +203,11 @@ def deploy_kubescape(
         print("Deploying Kubescape Operator...")
         cluster_context = subprocess.run(['kubectl', 'config', 'current-context'], check=True, capture_output=True, text=True).stdout.strip()
         
+        quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
+        quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
+        if not quay_password or not quay_username:
+            raise ValueError("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set.")
+        
         helm_command = (
             f'helm upgrade --install kubescape kubescape/kubescape-operator '
             f'-n kubescape --create-namespace '
@@ -232,9 +237,9 @@ def deploy_kubescape(
                 ' --set capabilities.manageWorkloads=enable ' 
                 ' --set capabilities.nodeProfileService=enable ' 
                 ' --set capabilities.runtimeDetection=enable ' 
-                ' --set imagePullSecret.password=Q5UMRCFPRAHAIRWAYTOP7P4PK9ZNV2H26JFTB70CMNZ2KG1NHGPYXK6PNPNC677E ' 
+                ' --set imagePullSecret.password={quay_password} ' 
                 ' --set imagePullSecret.server=quay.io ' 
-                ' --set imagePullSecret.username=armosec+armosec_ro ' 
+                ' --set imagePullSecret.username={quay_username} ' 
                 ' --set imagePullSecrets=armosec-readonly '
                 ' --set nodeAgent.image.repository=quay.io/armosec/node-agent ' 
             )

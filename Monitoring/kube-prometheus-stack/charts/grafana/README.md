@@ -579,7 +579,7 @@ In order to serve Grafana with a prefix (e.g., <http://example.com/grafana>), ad
 ingress:
   enabled: true
   annotations:
-    kubernetes.io/ingress.class: "nginx"
+    spec.ingressClassName: "nginx"
     nginx.ingress.kubernetes.io/rewrite-target: /$1
     nginx.ingress.kubernetes.io/use-regex: "true"
 

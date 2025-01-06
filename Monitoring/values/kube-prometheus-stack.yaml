@@ -70,7 +70,7 @@ grafana:
     ## Annotations for Grafana Ingress
     ##
     annotations:
-      kubernetes.io/ingress.class: nginx
+      spec.ingressClassName: nginx
       cert-manager.io/issuer: "letsencrypt-prod"
 
     ## Labels to be added to the Ingress
