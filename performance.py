@@ -205,9 +205,14 @@ def deploy_kubescape(
         
         quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
         quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
-        if not quay_password or not quay_username:
-            raise ValueError("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set.")
-        
+
+        if quay_password and quay_username:
+            print("Environment variables are correctly set.")
+        else:
+            print("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
+            print(f"QUAYIO_REGISTRY_PASSWORD: {quay_password}")
+            print(f"QUAYIO_REGISTRY_USERNAME: {quay_username}")
+            
         helm_command = (
             f'helm upgrade --install kubescape kubescape/kubescape-operator '
             f'-n kubescape --create-namespace '
