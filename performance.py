@@ -206,12 +206,16 @@ def deploy_kubescape(
         quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
         quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
 
-        if quay_password and quay_username:
-            print("Environment variables are correctly set.")
-        else:
-            print("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
-            print(f"QUAYIO_REGISTRY_PASSWORD: {quay_password}")
-            print(f"QUAYIO_REGISTRY_USERNAME: {quay_username}")
+        # if quay_password and quay_username:
+        #     print("Environment variables are correctly set.")
+        # else:
+        #     print("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
+        #     print(f"QUAYIO_REGISTRY_PASSWORD: {quay_password}")
+        #     print(f"QUAYIO_REGISTRY_USERNAME: {quay_username}")
+        quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
+        quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
+        if not quay_password or not quay_username:
+            raise ValueError("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
             
         helm_command = (
             f'helm upgrade --install kubescape kubescape/kubescape-operator '
@@ -242,9 +246,9 @@ def deploy_kubescape(
                 ' --set capabilities.manageWorkloads=enable ' 
                 ' --set capabilities.nodeProfileService=enable ' 
                 ' --set capabilities.runtimeDetection=enable ' 
-                ' --set imagePullSecret.password={quay_password} ' 
+                ' --set imagePullSecret.password=5UMRCFPRAHAIRWAYTOP7P4PK9ZNV2H26JFTB70CMNZ2KG1NHGPYXK6PNPNC677E ' 
                 ' --set imagePullSecret.server=quay.io ' 
-                ' --set imagePullSecret.username={quay_username} ' 
+                ' --set imagePullSecret.username=armosec+armosec_ro ' 
                 ' --set imagePullSecrets=armosec-readonly '
                 ' --set nodeAgent.image.repository=quay.io/armosec/node-agent ' 
             )
