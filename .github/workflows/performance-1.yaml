@@ -89,7 +89,7 @@ jobs:
 
       - name: Connect to the cluster
         run: |
-          # CLUSTER_ID=$(doctl kubernetes cluster get ${{ github.event.inputs.CLUSTER_NAME }} --format ID --no-header)
+          CLUSTER_ID=$(doctl kubernetes cluster get ${{ github.event.inputs.CLUSTER_NAME }} --format ID --no-header)
           doctl kubernetes cluster kubeconfig save $CLUSTER_ID
 
       - name: Run performance Test
