@@ -73,24 +73,24 @@ jobs:
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
-      # - name: Create Kubernetes Cluster
-      #   run: |
-      #     doctl kubernetes cluster create ${{ github.event.inputs.CLUSTER_NAME }} \
-      #       --region fra1 \
-      #       --version ${{ github.event.inputs.KUBERNETES_VERSION }} \
-      #       --vpc-uuid 7ff72b70-98a3-4743-9e83-2f0131047d39 \
-      #       --node-pool "name=default-pool;size=${{ github.event.inputs.NODE_SIZE }};count=${{ github.event.inputs.NODE_COUNT }}" \
-      #       --wait
+      - name: Create Kubernetes Cluster
+        run: |
+          doctl kubernetes cluster create ${{ github.event.inputs.CLUSTER_NAME }} \
+            --region fra1 \
+            --version ${{ github.event.inputs.KUBERNETES_VERSION }} \
+            --vpc-uuid 7ff72b70-98a3-4743-9e83-2f0131047d39 \
+            --node-pool "name=default-pool;size=${{ github.event.inputs.NODE_SIZE }};count=${{ github.event.inputs.NODE_COUNT }}" \
+            --wait
 
-      # - name: Configure kubectl
-      #   run: |
-      #     doctl kubernetes cluster kubeconfig save ${{ github.event.inputs.CLUSTER_NAME }}
-      #     kubectl config set-context $(kubectl config current-context) --namespace=default
+      - name: Configure kubectl
+        run: |
+          doctl kubernetes cluster kubeconfig save ${{ github.event.inputs.CLUSTER_NAME }}
+          kubectl config set-context $(kubectl config current-context) --namespace=default
 
       - name: Connect to the cluster
         run: |
           # CLUSTER_ID=$(doctl kubernetes cluster get ${{ github.event.inputs.CLUSTER_NAME }} --format ID --no-header)
-          doctl kubernetes cluster kubeconfig save c093c6bb-b450-453e-a8f0-7fefde7bd5fc
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
 
       - name: Run performance Test
         env:
