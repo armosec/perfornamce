@@ -246,7 +246,7 @@ def deploy_kubescape(
                 ' --set capabilities.manageWorkloads=enable ' 
                 ' --set capabilities.nodeProfileService=enable ' 
                 ' --set capabilities.runtimeDetection=enable ' 
-                ' --set imagePullSecret.password=5UMRCFPRAHAIRWAYTOP7P4PK9ZNV2H26JFTB70CMNZ2KG1NHGPYXK6PNPNC677E ' 
+                ' --set imagePullSecret.password=Q5UMRCFPRAHAIRWAYTOP7P4PK9ZNV2H26JFTB70CMNZ2KG1NHGPYXK6PNPNC677E ' 
                 ' --set imagePullSecret.server=quay.io ' 
                 ' --set imagePullSecret.username=armosec+armosec_ro ' 
                 ' --set imagePullSecrets=armosec-readonly '
