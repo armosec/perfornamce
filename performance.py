@@ -225,7 +225,7 @@ def deploy_kubescape(
             f'--set accessKey={accessKey} '
             f'--set server=api.armosec.io '
             f'--set nodeAgent.env[0].name=PYROSCOPE_SERVER_SVC '
-            f'--set nodeAgent.env[0].value=http://pyroscope-query-frontend.monitoring.svc.cluster.local.:4040'
+            f'--set nodeAgent.env[0].value=http://pyroscope-distributor.monitoring.svc.cluster.local.:4040'
         )
         
         if version:
@@ -427,7 +427,7 @@ def main():
         additional_helm_command=args.additional_helm_command,
         storage_image_tag=args.storage_version,
         node_agent_image_tag=args.node_agent_version,
-        private_node_agent=args.private_node_agent
+        private_node_agent=args.private_node_agent  
     ) 
     
     # time.sleep(59)  # Wait for the operator to deploy
