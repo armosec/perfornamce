@@ -383,6 +383,7 @@ def main():
     parser.add_argument('-nodes', type=int, default=2, help="Number of nodes (default is 2)")
     parser.add_argument('-account', type=str, required=True, help="Account ID")
     parser.add_argument('-accessKey', type=str, required=True, help="Access key")
+    parser.add_argument('-duration', type=int, default=4, help="Duration time in hours (default is 4)")
     parser.add_argument('-destroy', action='store_true', help="Destroy the Terraform-managed infrastructure")
     parser.add_argument('-skip-cluster', action='store_true', help="Skip cluster creation and connection")
     parser.add_argument('-version', type=str, help="Specify the Helm chart version for Kubescape")

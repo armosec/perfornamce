@@ -23,6 +23,11 @@ on:
         type: number
         default: 3
         required: true
+      DURATION_TIME:
+        description: 'How long to run before collecting metrics'
+        type: number
+        default: 10
+        required: true
       KUBERNETES_VERSION:
         description: 'Kubernetes version to use'
         type: string
@@ -117,3 +122,7 @@ jobs:
 
           echo "Running command: $CMD"
           eval $CMD
+
+      - name: Wait and Collect Metrics
+        run: |
+              python control_runner.py --duration ${{ github.event.inputs.DURATION_TIME }}
