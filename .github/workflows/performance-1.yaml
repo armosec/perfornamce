@@ -28,11 +28,11 @@ on:
         type: number
         default: 10
         required: true
-      KUBERNETES_VERSION:
-        description: 'Kubernetes version to use'
-        type: string
-        default: '1.31'
-        required: true
+      # KUBERNETES_VERSION:
+      #   description: 'Kubernetes version to use'
+      #   type: string
+      #   default: '1.31'
+      #   required: true
       ACCOUNT_ID:
         description: 'Your account ID'
         type: string
