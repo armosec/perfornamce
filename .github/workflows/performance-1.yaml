@@ -82,7 +82,6 @@ jobs:
         run: |
           doctl kubernetes cluster create ${{ github.event.inputs.CLUSTER_NAME }} \
             --region fra1 \
-            --version ${{ github.event.inputs.KUBERNETES_VERSION }} \
             --vpc-uuid 7ff72b70-98a3-4743-9e83-2f0131047d39 \
             --node-pool "name=default-pool;size=${{ github.event.inputs.NODE_SIZE }};count=${{ github.event.inputs.NODE_COUNT }}" \
             --wait
