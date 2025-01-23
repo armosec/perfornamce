@@ -12,8 +12,13 @@ data:
     START_TIME=$(date +%s)
 
     # Install dependencies
-    echo "Installing git..."
+    echo "Installing git and kubectl..."
     apt-get update && apt-get install -y git
+
+    # Install kubectl
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    mv kubectl /usr/local/bin/
 
     echo "Installing Python dependencies..."
     pip install requests pandas matplotlib plotly numpy
