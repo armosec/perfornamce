@@ -20,15 +20,18 @@ logger.info(f"Using exact duration of {EXACT_DURATION} minutes from test run")
 def get_node_agent_pods():
     """Get list of all node-agent pods in the kubescape namespace"""
     try:
-        cmd = "kubectl get pods -n kubescape -l app=node-agent --no-headers -o custom-columns=':metadata.name'"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
+        # Simpler command to get node-agent pods
+        cmd = "kubectl get pods -n kubescape --no-headers -o custom-columns=':metadata.name' | grep node-agent"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
+        # Split the output into lines and filter empty lines
         pods = [pod.strip() for pod in result.stdout.split('\n') if pod.strip()]
         logger.info(f"Found {len(pods)} node-agent pods: {pods}")
         return pods
         
     except subprocess.CalledProcessError as e:
         logger.error(f"Error getting node-agent pods: {e}")
+        logger.error(f"Error output: {e.stderr}")
         return []
 
 def get_pod_profile(pod_name):
@@ -38,14 +41,14 @@ def get_pod_profile(pod_name):
     url = f'{PYROSCOPE_SERVER}/render'
     params = {
         'query': APPLICATION_NAME,
-        'from': f'now-{EXACT_DURATION}m',  # Use exact duration from the test run
+        'from': f'now-{EXACT_DURATION}m',
         'until': 'now',
         'aggregation': 'sum',
         'format': 'json'
     }
     
     try:
-        logger.info(f"Querying profile data for pod {pod_name} over past {EXACT_DURATION} minutes")
+        logger.info(f"Querying profile data for pod {pod_name}")
         response = requests.get(url, params=params)
         response.raise_for_status()
         profile_data = response.json()
@@ -70,11 +73,14 @@ def get_pod_profile(pod_name):
 def main():
     logger.info(f"Starting profile collection for the past {EXACT_DURATION} minutes")
     
+    # Get list of all node-agent pods
     pods = get_node_agent_pods()
+    
     if not pods:
         logger.error("No node-agent pods found")
         return
     
+    # Process each pod
     successful_pods = 0
     for pod in pods:
         if get_pod_profile(pod):

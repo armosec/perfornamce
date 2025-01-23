@@ -1,7 +1,7 @@
 import os
 import json
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.graph_objects as go # type: ignore
 from typing import Dict, Any
 import glob
 import logging
