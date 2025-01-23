@@ -1,3 +1,4 @@
+import os
 import requests
 from datetime import datetime, timedelta, timezone
 import pandas as pd
@@ -15,17 +16,29 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PrometheusConfig:
-    url: str = "http://localhost:9090"
+    # url: str = "http://localhost:9090"
+    url: str = "http://prometheus-operated.monitoring.svc.cluster.local:9090"
     namespace: str = "kubescape"
     pod_regex: str = "node-agent.*"
-    time_window_hours: int = 5
     step_minutes: str = "1"
 
 class PrometheusMetricsCollector:
     def __init__(self, config: Optional[PrometheusConfig] = None):
         self.config = config or PrometheusConfig()
+        self.output_dir = "output"
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Get exact duration from environment variable
+        try:
+            self.duration_minutes = int(os.getenv('EXACT_DURATION', '30'))
+            logger.info(f"Using exact duration of {self.duration_minutes} minutes from test run")
+        except ValueError as e:
+            logger.error(f"Error parsing duration: {e}")
+            self.duration_minutes = 30
+
+        # Calculate time window based on duration
         self.end_time = datetime.now(timezone.utc)
-        self.start_time = self.end_time - timedelta(hours=self.config.time_window_hours)
+        self.start_time = self.end_time - timedelta(minutes=self.duration_minutes)
         
     def query_prometheus_range(self, query: str) -> Optional[List[Dict]]:
         """Execute a Prometheus range query with error handling."""
@@ -38,10 +51,11 @@ class PrometheusMetricsCollector:
         
         try:
             logger.info(f"Querying Prometheus with: {query}")
+            logger.info(f"Time range: {self.start_time} to {self.end_time}")
             response = requests.get(
                 f'{self.config.url}/api/v1/query_range',
                 params=params,
-                timeout=30  # Add timeout
+                timeout=30
             )
             response.raise_for_status()
             
@@ -57,7 +71,7 @@ class PrometheusMetricsCollector:
             return None
             
     def process_metrics(self, metrics: List[Dict], metric_type: str) -> pd.DataFrame:
-        """Process metrics into a DataFrame with better type handling."""
+        """Process metrics into a DataFrame."""
         if not metrics:
             return pd.DataFrame(columns=['Time', 'Pod', 'Value'])
             
@@ -87,7 +101,7 @@ class PrometheusMetricsCollector:
         return df[df['Value'].notna() & (df['Value'] >= 0)]
 
     def plot_individual(self, df: pd.DataFrame, metric_type: str) -> None:
-        """Create plots with improved styling and error handling."""
+        """Create plots."""
         if df.empty:
             logger.warning(f"No data to plot for {metric_type}")
             return
@@ -101,7 +115,9 @@ class PrometheusMetricsCollector:
                 plt.plot(pod_data['Time'], pod_data['Value'],
                         label=pod, marker='o', linestyle='-', markersize=4)
                 
-                plt.title(f"{metric_type} Usage Over Time\nPod: {pod}", fontsize=16)
+                title = (f"{metric_type} Usage Over {self.duration_minutes} Minutes\n"
+                        f"Pod: {pod}")
+                plt.title(title, fontsize=16)
                 plt.xlabel("Time (UTC)", fontsize=12)
                 plt.ylabel(f"{metric_type} ({'MiB' if metric_type == 'Memory' else 'Cores'})",
                          fontsize=12)
@@ -110,7 +126,7 @@ class PrometheusMetricsCollector:
                 plt.xticks(rotation=45)
                 plt.tight_layout()
                 
-                filename = f"{pod}_{metric_type.lower()}_usage.png"
+                filename = os.path.join(self.output_dir, f"{pod}_{metric_type.lower()}_usage.png")
                 plt.savefig(filename, dpi=300, bbox_inches='tight')
                 logger.info(f"Saved graph: {filename}")
                 plt.close()
@@ -120,58 +136,53 @@ class PrometheusMetricsCollector:
                 plt.close()
 
     def save_to_csv(self, df: pd.DataFrame, metric_type: str) -> None:
-        """Save data to CSV with error handling."""
+        """Save data to CSV."""
         if df.empty:
             logger.warning(f"No data to save for {metric_type}")
             return
             
         try:
-            filename = f"{metric_type.lower()}_metrics.csv"
+            filename = os.path.join(self.output_dir, f"{metric_type.lower()}_metrics.csv")
             df.to_csv(filename, index=False)
             logger.info(f"Saved data to CSV: {filename}")
         except Exception as e:
             logger.error(f"Error saving CSV file: {str(e)}")
 
     def run(self):
-        """Main execution method with improved memory query."""
-        # Memory Query - Modified to be more specific
+        """Main execution method."""
+        logger.info(f"Starting metrics collection for the past {self.duration_minutes} minutes")
+        
         memory_query = (
             f'container_memory_working_set_bytes{{namespace="{self.config.namespace}",'
             f'pod=~"{self.config.pod_regex}", container!="", container!="POD"}}'
         )
         memory_results = self.query_prometheus_range(memory_query)
 
-        # Debug memory results
         if memory_results:
             logger.info("Memory query returned results:")
             for result in memory_results:
                 logger.info(f"Metric labels: {result['metric']}")
 
-        # CPU Query
         cpu_query = (
             f'sum(rate(container_cpu_usage_seconds_total{{namespace="{self.config.namespace}",'
             f'pod=~"{self.config.pod_regex}"}}[5m])) by (pod)'
         )
         cpu_results = self.query_prometheus_range(cpu_query)
 
-        # Process Memory metrics
         if memory_results:
             memory_df = self.process_metrics(memory_results, "Memory")
-            logger.info(f"Unique pods in memory data: {memory_df['Pod'].unique()}")
-            logger.info(f"Memory value ranges: \n{memory_df.groupby('Pod')['Value'].describe()}")
-            
             memory_df = self.filter_zero_values(memory_df)
             self.save_to_csv(memory_df, "Memory")
             self.plot_individual(memory_df, "Memory")
 
-        # Process CPU metrics
         if cpu_results:
             cpu_df = self.process_metrics(cpu_results, "CPU")
             cpu_df = self.filter_zero_values(cpu_df)
             self.save_to_csv(cpu_df, "CPU")
             self.plot_individual(cpu_df, "CPU")
 
+        logger.info(f"Metrics collection complete for {self.duration_minutes} minute period")
+
 if __name__ == "__main__":
-    # Create collector with default configuration
     collector = PrometheusMetricsCollector()
     collector.run()

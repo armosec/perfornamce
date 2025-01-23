@@ -1,15 +1,23 @@
+import os
+import json
 import pandas as pd
 import plotly.graph_objects as go
 from typing import Dict, Any
-import numpy as np
+import glob
+import logging
 
-def analyze_profile_data(data: Dict[Any, Any]):
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def analyze_profile_data(data: Dict[Any, Any], pod_name: str):
     """
     Analyzes profiling data to create a top table and flamegraph visualization.
     Values are displayed in MiB.
     
     Args:
         data: Dictionary containing the profiling data with 'flamebearer' section
+        pod_name: Name of the pod being analyzed
         
     Returns:
         tuple: (DataFrame with top functions, Plotly figure with flamegraph)
@@ -54,6 +62,9 @@ def analyze_profile_data(data: Dict[Any, Any]):
     df['Self_Percentage'] = (df['Self_Ticks'] / total_ticks * 100)
     df['Total_Percentage'] = (df['Total_Ticks'] / total_ticks * 100)
     
+    # Add pod name column
+    df['Pod'] = pod_name
+    
     # Sort by Self_MiB
     df = df.sort_values('Self_MiB', ascending=False).reset_index(drop=True)
     
@@ -65,6 +76,7 @@ def analyze_profile_data(data: Dict[Any, Any]):
     
     # Select and reorder columns for display
     display_df = df[[
+        'Pod',
         'Function',
         'Self_MiB',
         'Total_MiB',
@@ -73,11 +85,11 @@ def analyze_profile_data(data: Dict[Any, Any]):
     ]]
     
     # Create flamegraph
-    fig = create_flamegraph(levels, names, total_ticks)
+    fig = create_flamegraph(levels, names, total_ticks, pod_name)
     
     return display_df.head(20), fig
 
-def create_flamegraph(levels: list, names: list, total_ticks: int) -> go.Figure:
+def create_flamegraph(levels: list, names: list, total_ticks: int, pod_name: str) -> go.Figure:
     """
     Creates a flamegraph visualization using Plotly.
     Values are displayed in MiB.
@@ -137,7 +149,7 @@ def create_flamegraph(levels: list, names: list, total_ticks: int) -> go.Figure:
     
     # Update layout
     fig.update_layout(
-        title='Memory Usage Flamegraph (MiB)',
+        title=f'Memory Usage Flamegraph (MiB) - {pod_name}',
         xaxis_title='Memory Usage (MiB)',
         yaxis_title='Stack Depth',
         barmode='stack',
@@ -149,39 +161,67 @@ def create_flamegraph(levels: list, names: list, total_ticks: int) -> go.Figure:
     
     return fig
 
-def process_profile(json_data: Dict[Any, Any], output_csv: str = "profile_results.csv", output_html: str = "profile_flamegraph.html"):
+def process_profile(json_data: Dict[Any, Any], pod_name: str, output_dir: str):
     """
-    Process the profile data, print results, and save to CSV and HTML.
+    Process the profile data for a specific pod, save results to CSV and HTML.
     
     Args:
         json_data: The parsed JSON profile data
-        output_csv: Path to save the CSV file (default: "profile_results.csv")
-        output_html: Path to save the flamegraph HTML file (default: "profile_flamegraph.html")
+        pod_name: Name of the pod being analyzed
+        output_dir: Directory to save results
     """
-    top_table, flamegraph = analyze_profile_data(json_data)
+    os.makedirs(output_dir, exist_ok=True)
+    output_csv = os.path.join(output_dir, f"profile_results_{pod_name}.csv")
+    output_html = os.path.join(output_dir, f"profile_flamegraph_{pod_name}.html")
     
-    print("\nTop 20 Functions by Self Memory Usage (MiB):")
+    top_table, flamegraph = analyze_profile_data(json_data, pod_name)
+    
+    print(f"\nTop 20 Functions by Self Memory Usage (MiB) for {pod_name}:")
     print(top_table.to_string(index=False))
     
     # Save to CSV
     top_table.to_csv(output_csv, index=False)
-    print(f"\nResults saved to: {output_csv}")
+    logger.info(f"Results saved to: {output_csv}")
     
     # Save flamegraph to HTML
     flamegraph.write_html(output_html)
-    print(f"Flamegraph saved to: {output_html}")
+    logger.info(f"Flamegraph saved to: {output_html}")
     
     return top_table, flamegraph
 
+def main():
+    OUTPUT_DIR = "output"
+    all_results = []
+    
+    # Find all profile data files
+    profile_files = glob.glob(os.path.join(OUTPUT_DIR, "pyroscope_profile_data_node-agent-*.json"))
+    
+    if not profile_files:
+        logger.error(f"No profile data files found in {OUTPUT_DIR}")
+        return
+    
+    logger.info(f"Found {len(profile_files)} profile data files")
+    
+    # Process each profile file
+    for profile_file in profile_files:
+        pod_name = os.path.basename(profile_file).replace("pyroscope_profile_data_", "").replace(".json", "")
+        
+        try:
+            with open(profile_file, 'r') as f:
+                json_data = json.load(f)
+            
+            top_table, _ = process_profile(json_data, pod_name, OUTPUT_DIR)
+            all_results.append(top_table)
+            
+        except Exception as e:
+            logger.error(f"Error processing {profile_file}: {e}")
+    
+    # Combine all results into a single CSV
+    if all_results:
+        combined_results = pd.concat(all_results, ignore_index=True)
+        combined_csv = os.path.join(OUTPUT_DIR, "combined_profile_results.csv")
+        combined_results.to_csv(combined_csv, index=False)
+        logger.info(f"Combined results saved to: {combined_csv}")
+
 if __name__ == "__main__":
-    import json
-    
-    # Read the JSON file
-    with open('pyroscope_profile_data.json', 'r') as f:
-        json_data = json.load(f)
-    
-    # Process the profile data
-    top_table, flamegraph = process_profile(json_data)
-    
-    # Display the flamegraph
-    flamegraph.show()
+    main()

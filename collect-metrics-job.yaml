@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: run-script
+  namespace: default
+data:
+  setup_and_run.sh: |
+    #!/bin/bash
+    set -e
+
+    # Record start time
+    START_TIME=$(date +%s)
+
+    # Install dependencies
+    echo "Installing git..."
+    apt-get update && apt-get install -y git
+
+    echo "Installing Python dependencies..."
+    pip install requests pandas matplotlib plotly numpy
+
+    # Clean and decode the token
+    DECODED_TOKEN=$(echo -n "${GIT_TOKEN}" | tr -d '\n' | base64 -d | tr -d '\n')
+
+    # Clone repository
+    echo "Cloning repository..."
+    git clone "https://${DECODED_TOKEN}@github.com/armosec/perfornamce.git" /workspace
+    cd /workspace
+
+    # Set git config for pushing results
+    git config --global user.email "bvolovat@gmail.com"
+    git config --global user.name "bvolovat"
+
+    # Wait for specified duration
+    echo "Waiting for 5 minutes before running tests..."
+    sleep 5m
+
+    # Calculate exact duration
+    END_TIME=$(date +%s)
+    EXACT_DURATION=$(( ($END_TIME - $START_TIME) / 60 ))
+    export EXACT_DURATION
+
+    # Create output directory
+    echo "Creating output directory..."
+    mkdir -p output
+
+    # Run the tests
+    echo "Running tests with exact duration of ${EXACT_DURATION} minutes..."
+    EXACT_DURATION=${EXACT_DURATION} python get_data_from_pyroscope.py
+    EXACT_DURATION=${EXACT_DURATION} python get_data_from_prometheus.py
+    python parse_pyroscope_data.py
+
+    # Push results
+    echo "Committing and pushing results..."
+    git add output/
+    git commit -m "Add test results from cluster run - Duration: ${EXACT_DURATION}m"
+    git push origin main
+
+    echo "Test execution complete. Results are pushed to repository."
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: metrics-test-$(date +%Y%m%d-%H%M%S)
+  namespace: default
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      containers:
+      - name: metrics-collector
+        image: python:3.9-slim
+        command: ["/bin/bash", "/scripts/setup_and_run.sh"]
+        env:
+        - name: GIT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: token
+        - name: DURATION_TIME
+          value: "10"  # Set a default value or this will be replaced during creation
+        volumeMounts:
+        - name: run-script
+          mountPath: /scripts
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+
+      volumes:
+      - name: run-script
+        configMap:
+          name: run-script
+          defaultMode: 0777
+
+      restartPolicy: Never

@@ -203,8 +203,8 @@ def deploy_kubescape(
         print("Deploying Kubescape Operator...")
         cluster_context = subprocess.run(['kubectl', 'config', 'current-context'], check=True, capture_output=True, text=True).stdout.strip()
         
-        quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
-        quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
+        # quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
+        # quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
 
         # if quay_password and quay_username:
         #     print("Environment variables are correctly set.")
@@ -212,10 +212,10 @@ def deploy_kubescape(
         #     print("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
         #     print(f"QUAYIO_REGISTRY_PASSWORD: {quay_password}")
         #     print(f"QUAYIO_REGISTRY_USERNAME: {quay_username}")
-        quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
-        quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
-        if not quay_password or not quay_username:
-            raise ValueError("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
+        # quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
+        # quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
+        # if not quay_password or not quay_username:
+        #     raise ValueError("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
             
         helm_command = (
             f'helm upgrade --install kubescape kubescape/kubescape-operator '
@@ -380,7 +380,7 @@ def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Deploy Kubescape with optional Helm parameters")
     parser.add_argument('-kdr', action='store_true', help="Enable KDR capabilities")
-    parser.add_argument('-nodes', type=int, default=2, help="Number of nodes (default is 2)")
+    parser.add_argument('-nodes', type=int, default=3, help="Number of nodes (default is 3)")
     parser.add_argument('-account', type=str, required=True, help="Account ID")
     parser.add_argument('-accessKey', type=str, required=True, help="Access key")
     parser.add_argument('-duration', type=int, default=4, help="Duration time in hours (default is 4)")
@@ -416,8 +416,8 @@ def main():
         node_count = args.nodes
     
     # Deploy prometheus and microservices demo
-    deploy_kube_prometheus_stack()
-    deploy_pyroscope()
+    # deploy_kube_prometheus_stack()
+    # deploy_pyroscope()
     
     # Step 3: Deploy Kubescape using Helm
     deploy_kubescape(
@@ -431,17 +431,17 @@ def main():
         private_node_agent=args.private_node_agent  
     ) 
     
-    # time.sleep(59)  # Wait for the operator to deploy
-    namespaces = create_parallel_namespaces(node_count)
-    apply_microservices_demo(namespaces)
+    # time.sleep(40)  # Wait for the operator to deploy
+    # namespaces = create_parallel_namespaces(node_count)
+    # apply_microservices_demo(namespaces)
     
 
-    # Step 4: Check if the cluster is ready by polling the node readiness
-    check_cluster_ready()
+    # # Step 4: Check if the cluster is ready by polling the node readiness
+    # check_cluster_ready()
 
-    # Step 5: Check if any pods are in CrashLoopBackOff state
-    print("Checking for pods in CrashLoopBackOff state...")
-    check_crashloop_pods(namespace="kubescape") 
+    # # Step 5: Check if any pods are in CrashLoopBackOff state
+    # print("Checking for pods in CrashLoopBackOff state...")
+    # check_crashloop_pods(namespace="kubescape") 
 
 if __name__ == "__main__":
     main()

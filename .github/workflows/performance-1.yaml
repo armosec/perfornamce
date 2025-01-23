@@ -122,6 +122,35 @@ jobs:
           echo "Running command: $CMD"
           eval $CMD
 
-      - name: Wait and Collect Metrics
+      # - name: Wait and Collect Metrics
+      #   run: |
+      #         python control_runner.py --duration ${{ github.event.inputs.DURATION_TIME }}
+
+      - name: Create Git Auth Secret
         run: |
-              python control_runner.py --duration ${{ github.event.inputs.DURATION_TIME }}
+        
+          # Create base64 encoded token
+          echo -n "${{ secrets.PERFO_GITHUB_TOKEN }}" | base64 > token.b64
+          
+          # Create the secret
+          kubectl create namespace default --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic git-auth \
+            --namespace=default \
+            --from-file=token=token.b64 \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy the Collect Metrics Job
+        run: |
+          # Get repository info
+          REPO_OWNER="${GITHUB_REPOSITORY_OWNER}"
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          
+          # Replace variables in the job yaml
+          cat collect-metrics-job.yaml | \
+            sed "s/\$(DURATION_TIME)/${{ github.event.inputs.DURATION_TIME }}/" | \
+            sed "s/\$(REPO_OWNER)/${REPO_OWNER}/" | \
+            sed "s/\$(REPO_NAME)/${REPO_NAME}/" | \
+            sed "s/\$(REPO_BRANCH)/${GITHUB_REF_NAME}/" | \
+            kubectl apply -f -
+          
+          echo "Metrics collection job deployed with duration: ${{ github.event.inputs.DURATION_TIME }} minutes"
