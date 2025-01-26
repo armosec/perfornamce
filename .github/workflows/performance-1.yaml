@@ -122,9 +122,9 @@ jobs:
           echo "Running command: $CMD"
           eval $CMD
 
-      # - name: Wait and Collect Metrics
-      #   run: |
-      #         python control_runner.py --duration ${{ github.event.inputs.DURATION_TIME }}
+      - name: Create RBAC
+        run: |
+              kubectl apply -f admin-role-binding.yaml
 
       - name: Create Git Auth Secret
         run: |

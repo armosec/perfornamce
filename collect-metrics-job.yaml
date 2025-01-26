@@ -1,4 +1,12 @@
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metrics-collector
+  namespace: default
+
+---
+
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: run-script
@@ -8,42 +16,53 @@ data:
     #!/bin/bash
     set -e
 
+    # Log script start
+    echo "Starting setup_and_run.sh script..."
+
     # Record start time
     START_TIME=$(date +%s)
 
     # Install dependencies
-    echo "Installing required packages..."
+    echo "Updating package list and installing required packages..."
     apt-get update
     apt-get install -y git curl apt-transport-https ca-certificates
 
     # Install kubectl
-    echo "Installing kubectl..."
+    echo "Downloading and installing kubectl..."
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
     chmod +x kubectl
     mv kubectl /usr/local/bin/
 
-    echo "Installing Python dependencies..."
-    pip install requests pandas matplotlib plotly numpy
+    # Verify kubectl installation
+    echo "Verifying kubectl installation..."
+    kubectl version --client || { echo "kubectl installation failed"; exit 1; }
 
-    # Clean and decode the token
+    # Install Python dependencies
+    echo "Installing Python dependencies..."
+    pip install --no-cache-dir requests pandas matplotlib plotly numpy
+
+    # Clean and decode the Git token
+    echo "Decoding GIT_TOKEN..."
     DECODED_TOKEN=$(echo -n "${GIT_TOKEN}" | tr -d '\n' | base64 -d | tr -d '\n')
 
-    # Clone repository
+    # Clone the repository
     echo "Cloning repository..."
     git clone "https://${DECODED_TOKEN}@github.com/armosec/perfornamce.git" /workspace
     cd /workspace
 
-    # Set git config for pushing results
+    # Configure Git for committing results
+    echo "Configuring Git..."
     git config --global user.email "bvolovat@gmail.com"
     git config --global user.name "bvolovat"
 
-    # Wait for specified duration
-    echo "Waiting for 10 minutes before running tests..."
-    sleep 10m
+    # Wait for 5 minutes (simulated delay)
+    echo "Waiting for 5 minutes before running tests..."
+    sleep 5m
 
     # Calculate exact duration
     END_TIME=$(date +%s)
     EXACT_DURATION=$(( ($END_TIME - $START_TIME) / 60 ))
+    echo "Exact test duration: ${EXACT_DURATION} minutes"
     export EXACT_DURATION
 
     # Create output directory
@@ -56,19 +75,20 @@ data:
     EXACT_DURATION=${EXACT_DURATION} python get_data_from_pyroscope.py
     python parse_pyroscope_data.py
 
-    # Push results
-    echo "Committing and pushing results..."
+    # Push the results
+    echo "Pushing results to repository..."
     git add output/
     git commit -m "Add test results from cluster run - Duration: ${EXACT_DURATION}m"
     git push origin main
 
-    echo "Test execution complete. Results are pushed to repository."
+    echo "Test execution complete. Results have been pushed to the repository."
 
 ---
+
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: metrics-test-$(date +%Y%m%d-%H%M%S)
+  name: metrics-test
   namespace: default
 spec:
   backoffLimit: 3
