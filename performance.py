@@ -416,8 +416,8 @@ def main():
         node_count = args.nodes
     
     # Deploy prometheus and microservices demo
-    # deploy_kube_prometheus_stack()
-    # deploy_pyroscope()
+    deploy_kube_prometheus_stack()
+    deploy_pyroscope()
     
     # Step 3: Deploy Kubescape using Helm
     deploy_kubescape(
@@ -431,17 +431,17 @@ def main():
         private_node_agent=args.private_node_agent  
     ) 
     
-    # time.sleep(40)  # Wait for the operator to deploy
-    # namespaces = create_parallel_namespaces(node_count)
-    # apply_microservices_demo(namespaces)
+    time.sleep(40)  # Wait for the operator to deploy
+    namespaces = create_parallel_namespaces(node_count)
+    apply_microservices_demo(namespaces)
     
 
     # # Step 4: Check if the cluster is ready by polling the node readiness
-    # check_cluster_ready()
+    check_cluster_ready()
 
     # # Step 5: Check if any pods are in CrashLoopBackOff state
-    # print("Checking for pods in CrashLoopBackOff state...")
-    # check_crashloop_pods(namespace="kubescape") 
+    print("Checking for pods in CrashLoopBackOff state...")
+    check_crashloop_pods(namespace="kubescape") 
 
 if __name__ == "__main__":
     main()
