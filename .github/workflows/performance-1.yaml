@@ -140,17 +140,12 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy the Collect Metrics Job
-        run: |
-          # Get repository info
-          REPO_OWNER="${GITHUB_REPOSITORY_OWNER}"
-          REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          
+        run: |         
           # Replace variables in the job yaml
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           cat collect-metrics-job.yaml | \
+            sed "s/\$(DATE)/$TIMESTAMP/" | \
             sed "s/\$(DURATION_TIME)/${{ github.event.inputs.DURATION_TIME }}/" | \
-            sed "s/\$(REPO_OWNER)/${REPO_OWNER}/" | \
-            sed "s/\$(REPO_NAME)/${REPO_NAME}/" | \
-            sed "s/\$(REPO_BRANCH)/${GITHUB_REF_NAME}/" | \
             kubectl apply -f -
           
           echo "Metrics collection job deployed with duration: ${{ github.event.inputs.DURATION_TIME }} minutes"
