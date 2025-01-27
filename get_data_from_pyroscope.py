@@ -1,112 +1,92 @@
-import os
-import requests
+import glob, os, requests, subprocess, json
 from datetime import datetime, timezone
-import json
-import subprocess
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# PYROSCOPE_SERVER = 'http://localhost:4040/pyroscope'
+# PYROSCOPE_SERVER = ‘http://localhost:4040/pyroscope’
 PYROSCOPE_SERVER = 'http://pyroscope-query-frontend.monitoring.svc.cluster.local.:4040'
 OUTPUT_DIR = 'output'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Get exact duration from environment variable
 EXACT_DURATION = int(os.getenv('EXACT_DURATION'))
-logger.info(f"Using exact duration of {EXACT_DURATION} minutes from test run")
 
 def get_node_agent_pods():
-    """Get list of all node-agent pods in the kubescape namespace"""
     try:
-        # Simpler command to get node-agent pods
         cmd = "kubectl get pods -n kubescape --no-headers -o custom-columns=':metadata.name' | grep node-agent"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        
-        # Split the output into lines and filter empty lines
         pods = [pod.strip() for pod in result.stdout.split('\n') if pod.strip()]
         logger.info(f"Found {len(pods)} node-agent pods: {pods}")
         return pods
-        
     except subprocess.CalledProcessError as e:
         logger.error(f"Error getting node-agent pods: {e}")
-        logger.error(f"Error output: {e.stderr}")
         return []
-    
+
 def get_pod_profile(pod_name):
     url = f'{PYROSCOPE_SERVER}/debug/pprof/heap'
     params = {'debug': '1'}
     
     try:
-        logger.info(f"Querying heap profile for pod {pod_name}")
+        logger.info(f"Getting heap profile for {pod_name}")
         response = requests.get(url, params=params)
         response.raise_for_status()
         
-        output_file = os.path.join(OUTPUT_DIR, f'heap_profile_{pod_name}.txt')
-        with open(output_file, 'w') as f:
-            f.write(response.text)
+        flamebearer_data = {
+            'names': [],
+            'levels': [],
+            'numTicks': 0
+        }
         
-        logger.info(f'Profile data saved to {output_file}')
+        total_bytes = 0
+        stack_data = []
+        
+        for line in response.text.splitlines():
+            if line.strip() and not line.startswith('#') and not line.startswith('heap profile:'):
+                parts = line.split()
+                if len(parts) >= 4:
+                    bytes_used = int(parts[0])
+                    total_bytes += bytes_used
+                    func_name = ' '.join(parts[3:])
+                    if func_name not in flamebearer_data['names']:
+                        flamebearer_data['names'].append(func_name)
+                    stack_data.append({
+                        'bytes': bytes_used,
+                        'name_idx': flamebearer_data['names'].index(func_name)
+                    })
+        
+        if stack_data:
+            level = []
+            pos = 0
+            for stack in stack_data:
+                level.extend([pos, stack['bytes'], stack['bytes'], stack['name_idx']])
+                pos += stack['bytes']
+            flamebearer_data['levels'].append(level)
+            flamebearer_data['numTicks'] = total_bytes
+        
+        output_file = os.path.join(OUTPUT_DIR, f'pyroscope_profile_data_{pod_name}.json')
+        with open(output_file, 'w') as f:
+            json.dump({'flamebearer': flamebearer_data}, f, indent=4)
+            
         return True
     except Exception as e:
-        logger.error(f'Error getting heap profile for {pod_name}: {e}')
+        logger.error(f'Error getting profile for {pod_name}: {e}')
         return False
 
-# def get_pod_profile(pod_name):
-#     """Get profile data for a specific pod"""
-#     APPLICATION_NAME = f'memory:inuse_space:bytes:space:bytes{{service_name="node-agent", pod="{pod_name}"}}'
-    
-#     url = f'{PYROSCOPE_SERVER}/render'
-#     params = {
-#         'query': APPLICATION_NAME,
-#         'from': f'now-{EXACT_DURATION}m',
-#         'until': 'now',
-#         'aggregation': 'sum',
-#         'format': 'json'
-#     }
-    
-#     try:
-#         logger.info(f"Querying profile data for pod {pod_name}")
-#         response = requests.get(url, params=params)
-#         response.raise_for_status()
-#         profile_data = response.json()
-        
-#         output_file = os.path.join(OUTPUT_DIR, f'pyroscope_profile_data_{pod_name}.json')
-#         with open(output_file, 'w') as f:
-#             json.dump(profile_data, f, indent=4)
-        
-#         logger.info(f'Profile data saved to {output_file}')
-#         return True
-        
-#     except requests.exceptions.RequestException as e:
-#         logger.error(f'Error querying Pyroscope for pod {pod_name}: {e}')
-#         return False
-#     except json.JSONDecodeError as e:
-#         logger.error(f'Error parsing JSON response for pod {pod_name}: {e}')
-#         return False
-#     except Exception as e:
-#         logger.error(f'Unexpected error processing pod {pod_name}: {e}')
-#         return False
-
 def main():
-    logger.info(f"Starting profile collection for the past {EXACT_DURATION} minutes")
-    
-    # Get list of all node-agent pods
+    logger.info(f"Starting profile collection")
     pods = get_node_agent_pods()
     
     if not pods:
         logger.error("No node-agent pods found")
         return
     
-    # Process each pod
-    successful_pods = 0
+    successful = 0
     for pod in pods:
         if get_pod_profile(pod):
-            successful_pods += 1
+            successful += 1
     
-    logger.info(f"Process complete. Successfully collected profiles for {successful_pods}/{len(pods)} pods")
-    logger.info(f"Time window: past {EXACT_DURATION} minutes")
+    logger.info(f"Successfully collected {successful}/{len(pods)} profiles")
 
 if __name__ == "__main__":
     main()
