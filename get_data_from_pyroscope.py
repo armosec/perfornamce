@@ -44,16 +44,19 @@ def get_pod_profile(pod_name):
         for line in response.text.splitlines():
             if line.strip() and not line.startswith('#') and not line.startswith('heap profile:'):
                 parts = line.split()
-                if len(parts) >= 4:
-                    bytes_used = int(parts[0])
-                    total_bytes += bytes_used
-                    func_name = ' '.join(parts[3:])
-                    if func_name not in flamebearer_data['names']:
-                        flamebearer_data['names'].append(func_name)
-                    stack_data.append({
-                        'bytes': bytes_used,
-                        'name_idx': flamebearer_data['names'].index(func_name)
-                    })
+                try:
+                    if len(parts) >= 4 and parts[0].isdigit():  # Check if first part is a number
+                        bytes_used = int(parts[0])
+                        total_bytes += bytes_used
+                        func_name = ' '.join(parts[3:])
+                        if func_name not in flamebearer_data['names']:
+                            flamebearer_data['names'].append(func_name)
+                        stack_data.append({
+                            'bytes': bytes_used,
+                            'name_idx': flamebearer_data['names'].index(func_name)
+                        })
+                except ValueError:
+                    continue  # Skip lines that can't be parsed
         
         if stack_data:
             level = []
