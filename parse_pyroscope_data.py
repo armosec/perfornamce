@@ -11,83 +11,59 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def analyze_profile_data(data: Dict[Any, Any], pod_name: str):
-    """
-    Analyzes profiling data to create a top table and flamegraph visualization.
-    Values are displayed in MiB.
-    
-    Args:
-        data: Dictionary containing the profiling data with 'flamebearer' section
-        pod_name: Name of the pod being analyzed
+    try:
+        names = data['flamebearer']['names']
+        levels = data['flamebearer']['levels']
+        initial_ticks = data['flamebearer']['numTicks']
         
-    Returns:
-        tuple: (DataFrame with top functions, Plotly figure with flamegraph)
-    """
-    names = data['flamebearer']['names']
-    levels = data['flamebearer']['levels']
-    total_ticks = data['flamebearer']['numTicks']
-    
-    # Create dictionary to store function statistics
-    function_stats = {}
-    
-    # Process each level to find function stats
-    for level in levels:
-        for i in range(0, len(level), 4):
-            if i + 3 < len(level):
-                pos = level[i]
-                total_ticks = level[i + 1]
-                self_ticks = level[i + 2]  # This is the self ticks value
+        if not names or not levels or initial_ticks == 0:
+            logger.warning(f"Insufficient data for pod {pod_name}")
+            return pd.DataFrame(), None
+        
+        function_stats = {}
+        total_ticks = initial_ticks  # Preserve original total
+        
+        for level in levels:
+            for i in range(0, len(level), 4):
+                if i + 3 >= len(level):
+                    continue
+                    
+                self_ticks = level[i + 2] or 0
                 name_idx = level[i + 3]
                 
-                if name_idx < len(names):
-                    func_name = names[name_idx]
-                    if func_name not in function_stats:
-                        function_stats[func_name] = {
-                            'Function': func_name,
-                            'Total_Ticks': 0,
-                            'Self_Ticks': 0
-                        }
+                if name_idx >= len(names):
+                    continue
                     
-                    function_stats[func_name]['Total_Ticks'] += total_ticks
-                    function_stats[func_name]['Self_Ticks'] += self_ticks if self_ticks else 0
-    
-    # Create DataFrame
-    df = pd.DataFrame(list(function_stats.values()))
-    
-    # Convert ticks to MiB (assuming 1 tick = 1 byte)
-    BYTES_TO_MIB = 1 / (1024 * 1024)
-    df['Total_MiB'] = df['Total_Ticks'] * BYTES_TO_MIB
-    df['Self_MiB'] = df['Self_Ticks'] * BYTES_TO_MIB
-    
-    # Calculate percentages
-    df['Self_Percentage'] = (df['Self_Ticks'] / total_ticks * 100)
-    df['Total_Percentage'] = (df['Total_Ticks'] / total_ticks * 100)
-    
-    # Add pod name column
-    df['Pod'] = pod_name
-    
-    # Sort by Self_MiB
-    df = df.sort_values('Self_MiB', ascending=False).reset_index(drop=True)
-    
-    # Round values for display
-    df['Total_MiB'] = df['Total_MiB'].round(2)
-    df['Self_MiB'] = df['Self_MiB'].round(2)
-    df['Self_Percentage'] = df['Self_Percentage'].round(2)
-    df['Total_Percentage'] = df['Total_Percentage'].round(2)
-    
-    # Select and reorder columns for display
-    display_df = df[[
-        'Pod',
-        'Function',
-        'Self_MiB',
-        'Total_MiB',
-        'Self_Percentage',
-        'Total_Percentage'
-    ]]
-    
-    # Create flamegraph
-    fig = create_flamegraph(levels, names, total_ticks, pod_name)
-    
-    return display_df.head(20), fig
+                func_name = names[name_idx]
+                if func_name not in function_stats:
+                    function_stats[func_name] = {'Function': func_name, 'Total_Ticks': 0, 'Self_Ticks': 0}
+                
+                function_stats[func_name]['Total_Ticks'] += level[i + 1]
+                function_stats[func_name]['Self_Ticks'] += self_ticks
+
+        if not function_stats:
+            return pd.DataFrame(), None
+
+        df = pd.DataFrame(list(function_stats.values()))
+        BYTES_TO_MIB = 1 / (1024 * 1024)
+        
+        df['Total_MiB'] = df['Total_Ticks'] * BYTES_TO_MIB
+        df['Self_MiB'] = df['Self_Ticks'] * BYTES_TO_MIB
+        df['Self_Percentage'] = (df['Self_Ticks'] / total_ticks * 100) if total_ticks else 0
+        df['Total_Percentage'] = (df['Total_Ticks'] / total_ticks * 100) if total_ticks else 0
+        df['Pod'] = pod_name
+        
+        df = df.sort_values('Self_MiB', ascending=False).reset_index(drop=True)
+        df = df.round({'Total_MiB': 2, 'Self_MiB': 2, 'Self_Percentage': 2, 'Total_Percentage': 2})
+        
+        display_df = df[['Pod', 'Function', 'Self_MiB', 'Total_MiB', 'Self_Percentage', 'Total_Percentage']]
+        fig = create_flamegraph(levels, names, total_ticks, pod_name)
+        
+        return display_df.head(20), fig
+        
+    except Exception as e:
+        logger.error(f"Error analyzing profile data: {e}")
+        return pd.DataFrame(), None
 
 def create_flamegraph(levels: list, names: list, total_ticks: int, pod_name: str) -> go.Figure:
     """

@@ -72,8 +72,9 @@ data:
     # Run the tests
     echo "Running tests with exact duration of ${EXACT_DURATION} minutes..."
     EXACT_DURATION=${EXACT_DURATION} python get_data_from_prometheus.py
-    EXACT_DURATION=${EXACT_DURATION} python get_data_from_pyroscope.py
-    python parse_pyroscope_data.py
+    EXACT_DURATION=${EXACT_DURATION} python get_pprof.py
+    # EXACT_DURATION=${EXACT_DURATION} python get_data_from_pyroscope.py
+    # python parse_pyroscope_data.py
 
     # Push the results
     echo "Pushing results to repository..."

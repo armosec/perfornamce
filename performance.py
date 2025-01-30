@@ -436,7 +436,7 @@ def main():
     apply_microservices_demo(namespaces)
     
 
-    # # Step 4: Check if the cluster is ready by polling the node readiness
+    # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()
 
     # # Step 5: Check if any pods are in CrashLoopBackOff state
