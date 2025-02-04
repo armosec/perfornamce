@@ -5,8 +5,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-PYROSCOPE_SERVER = 'http://localhost:4040'
-# PYROSCOPE_SERVER = 'http://pyroscope-query-frontend.monitoring.svc.cluster.local.:4040'
+# PYROSCOPE_SERVER = 'http://localhost:4040'
+PYROSCOPE_SERVER = 'http://pyroscope-query-frontend.monitoring.svc.cluster.local.:4040'
 OUTPUT_DIR = 'output'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

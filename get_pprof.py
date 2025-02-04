@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 # Constants
-PYROSCOPE_URL = "http://localhost:4040"
+# PYROSCOPE_URL = "http://localhost:4040"
+PYROSCOPE_URL = 'http://pyroscope-query-frontend.monitoring.svc.cluster.local:4040'
 
 class PyroscopeClient:
     def __init__(self, base_url: str):
