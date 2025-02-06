@@ -1,6 +1,7 @@
 import requests
 import argparse
 import json
+import os
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -16,11 +17,8 @@ class PyroscopeClient:
         self.session = requests.Session()
 
     def get_profile(self, service_name: str, pod_name: str, from_time: datetime, until_time: datetime, query_type: str = "memory") -> Dict[str, Any]:
-        """
-        Fetch profile data in JSON format from Pyroscope API
-        """
+        """Fetch profile data in JSON format from Pyroscope API"""
         endpoint = f"{self.base_url}/pyroscope/render"
-        
         query = f"{query_type}:inuse_objects:count:space:bytes{{service_name=\"{service_name}\",pod=\"{pod_name}\"}}"
         
         params = {
@@ -39,6 +37,18 @@ class PyroscopeClient:
             print(f"Error fetching profile data for pod {pod_name}: {e}")
             return {}
 
+def get_node_agent_pods() -> List[str]:
+    """Get all node-agent pod names in the kubescape namespace"""
+    try:
+        cmd = "kubectl get pods -n kubescape --no-headers -o custom-columns=':metadata.name' | grep node-agent"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        pods = [pod.strip() for pod in result.stdout.split('\n') if pod.strip()]
+        print(f"Found {len(pods)} node-agent pods: {pods}")
+        return pods
+    except subprocess.CalledProcessError as e:
+        print(f"Error getting node-agent pods: {e}")
+        return []
+    
 def convert_to_speedscope(profile_data: Dict[str, Any], pod_name: str) -> Dict[str, Any]:
     """
     Convert Pyroscope JSON format to speedscope format
@@ -80,27 +90,18 @@ def convert_to_speedscope(profile_data: Dict[str, Any], pod_name: str) -> Dict[s
 
     return speedscope
 
-def get_node_agent_pods() -> List[str]:
-    """Get all node-agent pod names in the kubescape namespace"""
-    try:
-        cmd = "kubectl get pods -n kubescape --no-headers -o custom-columns=':metadata.name' | grep node-agent"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        pods = [pod.strip() for pod in result.stdout.split('\n') if pod.strip()]
-        print(f"Found {len(pods)} node-agent pods: {pods}")
-        return pods
-    except subprocess.CalledProcessError as e:
-        print(f"Error getting node-agent pods: {e}")
-        return []
 
 def main():
-    parser = argparse.ArgumentParser(description='Download and convert Pyroscope profiles to speedscope format for all node-agents')
-    parser.add_argument('--minutes', type=int, default=30, help='Time range in minutes')
-    parser.add_argument('--output-dir', default='output/profiles', help='Output directory')
+    # Read EXACT_DURATION from environment (default to 30 minutes)
+    duration_minutes = int(os.getenv('EXACT_DURATION', '30'))
+    print(f"Using EXACT_DURATION={duration_minutes} minutes from environment")
 
-    args = parser.parse_args()
+    # Calculate time range
+    until_time = datetime.now(timezone.utc)
+    from_time = until_time - timedelta(minutes=duration_minutes)
 
     # Create output directory
-    output_dir = Path(args.output_dir)
+    output_dir = Path("output/profiles")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Get all node-agent pods
@@ -108,10 +109,6 @@ def main():
     if not pods:
         print("No node-agent pods found!")
         return
-
-    # Calculate time range
-    until_time = datetime.now(timezone.utc)
-    from_time = until_time - timedelta(minutes=args.minutes)
 
     # Initialize client
     client = PyroscopeClient(PYROSCOPE_URL)
