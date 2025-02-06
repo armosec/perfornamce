@@ -59,7 +59,8 @@ data:
     git config --global user.name "bvolovat"
 
     echo "Waiting for ${EXACT_DURATION} minutes before running tests..."
-    sleep ${EXACT_DURATION}
+    #
+    sleep $((EXACT_DURATION * 60))
 
     END_TIME=$(date +%s)
     EXACT_DURATION=$(( ($END_TIME - $START_TIME) / 60 ))
@@ -119,6 +120,11 @@ spec:
             secretKeyRef:
               name: git-auth
               key: token
+        - name: WEBHOOK_URL  
+          valueFrom:
+            secretKeyRef:
+              name: perf-channel-webhook
+              key: url
         volumeMounts:
         - name: run-script
           mountPath: /scripts
