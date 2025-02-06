@@ -139,6 +139,13 @@ jobs:
             --from-file=token=token.b64 \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Create Webhook Secret
+        run: |
+          kubectl create secret generic perf-channel-webhook \
+            --namespace=default \
+            --from-literal=url=${{ secrets.PERFO_CHANNEL_WEBHOOK_URL }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy the Collect Metrics Job
         run: |         
           # Replace variables in the job yaml
