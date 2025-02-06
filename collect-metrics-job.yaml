@@ -33,13 +33,13 @@ data:
 
     # Extract Image Versions (Excluding `http-request`)
     IMAGE_VERSIONS=$(kubectl get pods -n kubescape -o jsonpath='{range .items[*]}{.metadata.name}{" -> "}{.spec.containers[*].image}{"\n"}{end}' |
-        awk -F'/' '{print $NF}' | awk -F':' '{if ($2 ~ /^v/) print $1": "$2; else print $1": v"$2}' |
-        grep -v "http-request" | sort -u)
+    awk -F'/' '{print $NF}' | awk -F':' '{if ($2 ~ /^v/) print $1": "$2; else print $1": v"$2}' |
+    sort -u)
 
     # Extract only one `node-agent` version (DaemonSet runs multiple instances)
     NODE_AGENT_VERSION=$(echo "$IMAGE_VERSIONS" | grep "node-agent" | head -n 1)
 
-    WEBHOOK_URL=${{ secrets.PERFO_CHANNEL_WEBHOOK_URL }}
+    WEBHOOK_URL="${WEBHOOK_URL}"
 
     # Send Slack notification (Job Started)
     # curl -X POST --data-urlencode "payload={\"channel\": \"C06AJ92GHLM\", \"username\": \"Performance-test\", \"icon_emoji\": \":rocket:\", \"text\": \"🚀 *Performance Test Started!* \nCluster: \`$CLUSTER_NAME\`\nHelm Chart: \`$HELM_VERSION\`\", \"attachments\": [{\"color\": \"#36a64f\", \"fields\": [{\"title\": \"Image Versions\", \"value\": \"\`\`\`$IMAGE_VERSIONS\`\`\`\", \"short\": false}], \"footer\": \"Kubernetes Cluster\", \"ts\": $(date +%s)}]}" $WEBHOOK_URL
