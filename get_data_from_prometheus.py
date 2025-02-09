@@ -25,13 +25,24 @@ class PrometheusConfig:
 class PrometheusMetricsCollector:
     def __init__(self, config: Optional[PrometheusConfig] = None):
         self.config = config or PrometheusConfig()
-        self.output_dir = "output"
-        os.makedirs(self.output_dir, exist_ok=True)
         
-        # Get exact duration from environment variable
+        # Get output directory from environment variable with 'output' as default
+        self.output_dir = os.getenv('OUTPUT_DIR', 'output')
+        logger.info(f"Using output directory: {self.output_dir}")
+        
+        # Ensure the output directory exists
         try:
-            self.duration_minutes = int(os.getenv('EXACT_DURATION', '30'))
-            logger.info(f"Using exact duration of {self.duration_minutes} minutes from test run")
+            os.makedirs(self.output_dir, exist_ok=True)
+            logger.info(f"Successfully created/verified output directory: {self.output_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to create {self.output_dir}, falling back to 'output': {e}")
+            self.output_dir = 'output'
+            os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Get duration from environment variable
+        try:
+            self.duration_minutes = int(os.getenv('DURATION_TIME', '30'))
+            logger.info(f"Using duration of {self.duration_minutes} minutes")
         except ValueError as e:
             logger.error(f"Error parsing duration: {e}")
             self.duration_minutes = 30

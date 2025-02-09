@@ -92,17 +92,34 @@ def convert_to_speedscope(profile_data: Dict[str, Any], pod_name: str) -> Dict[s
 
 
 def main():
-    # Read EXACT_DURATION from environment (default to 30 minutes)
-    duration_minutes = int(os.getenv('EXACT_DURATION', '30'))
-    print(f"Using EXACT_DURATION={duration_minutes} minutes from environment")
+    # Read environment variables with defaults
+    duration_minutes = int(os.getenv('DURATION_TIME', '30'))
+    base_output_dir = os.getenv('OUTPUT_DIR', 'output')
+    print(f"Using DURATION_TIME={duration_minutes} minutes")
+    print(f"Using base output directory: {base_output_dir}")
 
     # Calculate time range
     until_time = datetime.now(timezone.utc)
     from_time = until_time - timedelta(minutes=duration_minutes)
 
-    # Create output directory
-    output_dir = Path("output/profiles")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        # Try to create the base output directory
+        os.makedirs(base_output_dir, exist_ok=True)
+    except Exception as e:
+        print(f"Failed to create {base_output_dir}, falling back to 'output': {e}")
+        base_output_dir = 'output'
+        os.makedirs(base_output_dir, exist_ok=True)
+
+    # Create profiles subdirectory within the base output directory
+    output_dir = Path(base_output_dir) / "profiles"
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Successfully created profiles directory: {output_dir}")
+    except Exception as e:
+        print(f"Error creating profiles directory: {e}")
+        # Fallback to base output directory
+        output_dir = Path(base_output_dir)
+        print(f"Falling back to base directory: {output_dir}")
 
     # Get all node-agent pods
     pods = get_node_agent_pods()
@@ -130,9 +147,12 @@ def main():
                 output_file = output_dir / f"{pod_name}_{timestamp}.speedscope.json"
                 
                 # Write to file
-                with open(output_file, 'w') as f:
-                    json.dump(speedscope_data, f)
-                print(f"Profile saved to {output_file}")
+                try:
+                    with open(output_file, 'w') as f:
+                        json.dump(speedscope_data, f)
+                    print(f"Profile saved to {output_file}")
+                except Exception as e:
+                    print(f"Error saving profile for {pod_name}: {e}")
             else:
                 print(f"Failed to convert profile data for {pod_name}")
         else:

@@ -19,80 +19,39 @@ data:
     echo "Starting setup_and_run.sh script..."
     START_TIME=$(date +%s)
 
-    # Add early logging of duration
-    echo "Duration time set to: ${DURATION_TIME} minutes"
-
-    echo "Updating package list and installing required packages..."
-    apt-get update
-    apt-get install -y git curl apt-transport-https ca-certificates
-
-    echo "Downloading and installing kubectl..."
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    chmod +x kubectl
-    mv kubectl /usr/local/bin/
-
-    # Get Helm Chart Version
-    HELM_VERSION=$(kubectl get deployment -n kubescape -o jsonpath='{.items[0].metadata.labels.helm\.sh/chart}')
-
-    # Extract Image Versions (Excluding `http-request`)
-    IMAGE_VERSIONS=$(kubectl get pods -n kubescape -o jsonpath='{range .items[*]}{.metadata.name}{" -> "}{.spec.containers[*].image}{"\n"}{end}' |
-    awk -F'/' '{print $NF}' | awk -F':' '{if ($2 ~ /^v/) print $1": "$2; else print $1": v"$2}' |
-    sort -u)
-
-    # Extract only one `node-agent` version
-    NODE_AGENT_VERSION=$(echo "$IMAGE_VERSIONS" | grep "node-agent" | head -n 1)
-
-    WEBHOOK_URL="${WEBHOOK_URL}"
-
-    echo "Installing Python dependencies..."
-    pip install --no-cache-dir requests pandas matplotlib plotly numpy
-
-    echo "Decoding GIT_TOKEN..."
-    DECODED_TOKEN=$(echo -n "${GIT_TOKEN}" | tr -d '\n' | base64 -d | tr -d '\n')
-
-    echo "Cloning repository..."
+    echo "Cloning performance repository for scripts..."
     git clone "https://${DECODED_TOKEN}@github.com/armosec/perfornamce.git" /workspace
     cd /workspace
-
+    
+    echo "Cloning Logs repository (shallow clone)..."
+    git clone --depth 1 "https://${DECODED_TOKEN}@github.com/armosec/Logs.git" /workspace/Logs
+    
     echo "Configuring Git..."
     git config --global user.email "borisv@armosec.io"
     git config --global user.name "bvolovat"
-
-    echo "Waiting for ${EXACT_DURATION} minutes before running tests..."
-    sleep $((EXACT_DURATION * 60))
-
-    END_TIME=$(date +%s)
-    EXACT_DURATION=$(( ($END_TIME - $START_TIME) / 60 ))
-    export EXACT_DURATION
-
-    echo "Creating output directory..."
-    mkdir -p output
-
-    echo "Running tests with exact duration of ${EXACT_DURATION} minutes..."
+    
+    # Get Helm version
+    HELM_VERSION=$(kubectl get deployment -n kubescape -o jsonpath='{.items[0].metadata.labels.helm\.sh/chart}')
+    CLEAN_HELM_VERSION=$(echo "$HELM_VERSION" | sed 's/[^a-zA-Z0-9._-]/_/g')
+    
+    # Set up the output directory path with timestamp and helm version
+    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+    export OUTPUT_DIR="/workspace/Logs/performance-inCluster/${TIMESTAMP}_helm_${CLEAN_HELM_VERSION}"
+    echo "Setting OUTPUT_DIR environment variable: ${OUTPUT_DIR}"
+    echo "Creating output directory: ${OUTPUT_DIR}"
+    mkdir -p "${OUTPUT_DIR}"
+    
+    echo "Running tests with specified duration of ${DURATION_TIME} minutes..."
     python get_data_from_prometheus.py
-    python get_pprof.py 
-
-    echo "Pushing results to repository..."
-    git add output/
-    git commit -m "Add test results from cluster run - Duration: ${EXACT_DURATION}m"
+    python get_pprof.py
+    
+    # Change to Logs repo directory to commit and push
+    cd /workspace/Logs
+    
+    echo "Pushing results to Logs repository..."
+    git add "performance-inCluster/${TIMESTAMP}_helm_${CLEAN_HELM_VERSION}"
+    git commit -m "Add performance test results - Duration: ${DURATION_TIME}m, Helm: ${HELM_VERSION}"
     git push origin main
-
-    echo "Test execution complete."
-
-    curl -X POST --data-urlencode "payload={
-        \"channel\": \"C06AJ92GHLM\",
-        \"username\": \"Performance-test\",
-        \"icon_emoji\": \":military_helmet:\",
-        \"text\": \"*Performance Test Completed!*\nHelm Chart: \`$HELM_VERSION\`\nDuration: *${EXACT_DURATION} minutes*\n<https://github.com/armosec/perfornamce/tree/main/output|View outputs>\",
-        \"attachments\": [{
-            \"color\": \"#007bff\",
-            \"fields\": [{
-                \"title\": \"Image Versions\",
-                \"value\": \"\`\`\`$IMAGE_VERSIONS\`\`\`\",
-                \"short\": false
-            }]
-        }]
-    }" "$WEBHOOK_URL"
 
 ---
 
@@ -121,7 +80,7 @@ spec:
             secretKeyRef:
               name: perf-channel-webhook
               key: url
-        - name: EXACT_DURATION
+        - name: DURATION_TIME
           value: "$(DURATION_TIME)"
         volumeMounts:
         - name: run-script
