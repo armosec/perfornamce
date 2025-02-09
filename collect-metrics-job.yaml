@@ -19,6 +19,9 @@ data:
     echo "Starting setup_and_run.sh script..."
     START_TIME=$(date +%s)
 
+    # Add early logging of duration
+    echo "Duration time set to: ${DURATION_TIME} minutes"
+
     echo "Updating package list and installing required packages..."
     apt-get update
     apt-get install -y git curl apt-transport-https ca-certificates
@@ -36,13 +39,10 @@ data:
     awk -F'/' '{print $NF}' | awk -F':' '{if ($2 ~ /^v/) print $1": "$2; else print $1": v"$2}' |
     sort -u)
 
-    # Extract only one `node-agent` version (DaemonSet runs multiple instances)
+    # Extract only one `node-agent` version
     NODE_AGENT_VERSION=$(echo "$IMAGE_VERSIONS" | grep "node-agent" | head -n 1)
 
     WEBHOOK_URL="${WEBHOOK_URL}"
-
-    # Send Slack notification (Job Started)
-    # curl -X POST --data-urlencode "payload={\"channel\": \"C06AJ92GHLM\", \"username\": \"Performance-test\", \"icon_emoji\": \":rocket:\", \"text\": \"🚀 *Performance Test Started!* \nCluster: \`$CLUSTER_NAME\`\nHelm Chart: \`$HELM_VERSION\`\", \"attachments\": [{\"color\": \"#36a64f\", \"fields\": [{\"title\": \"Image Versions\", \"value\": \"\`\`\`$IMAGE_VERSIONS\`\`\`\", \"short\": false}], \"footer\": \"Kubernetes Cluster\", \"ts\": $(date +%s)}]}" $WEBHOOK_URL
 
     echo "Installing Python dependencies..."
     pip install --no-cache-dir requests pandas matplotlib plotly numpy
@@ -59,7 +59,6 @@ data:
     git config --global user.name "bvolovat"
 
     echo "Waiting for ${EXACT_DURATION} minutes before running tests..."
-    #
     sleep $((EXACT_DURATION * 60))
 
     END_TIME=$(date +%s)
@@ -79,9 +78,6 @@ data:
     git push origin main
 
     echo "Test execution complete."
-
-    # Send Slack notification (Job Finished)
-    # curl -X POST --data-urlencode "payload={\"channel\": \"C06AJ92GHLM\", \"username\": \"Performance-test\", \"icon_emoji\": \":white_check_mark:\", \"text\": \"✅ *Performance Test Completed!* \nCluster: \`$CLUSTER_NAME\`\nHelm Chart: \`$HELM_VERSION\`\nDuration: *${EXACT_DURATION} minutes*\", \"attachments\": [{\"color\": \"#36a64f\", \"fields\": [{\"title\": \"Image Versions\", \"value\": \"\`\`\`$IMAGE_VERSIONS\`\`\`\", \"short\": false}], \"footer\": \"Kubernetes Cluster\", \"ts\": $(date +%s)}]}" $WEBHOOK_URL
 
     curl -X POST --data-urlencode "payload={
         \"channel\": \"C06AJ92GHLM\",
@@ -125,6 +121,8 @@ spec:
             secretKeyRef:
               name: perf-channel-webhook
               key: url
+        - name: EXACT_DURATION
+          value: "$(DURATION_TIME)"
         volumeMounts:
         - name: run-script
           mountPath: /scripts
