@@ -20,7 +20,15 @@ data:
     START_TIME=$(date +%s)
 
     echo "Installing required packages..."
-    apt-get update && apt-get install -y git curl
+    apt-get update && apt-get install -y git curl apt-transport-https ca-certificates
+
+    echo "Downloading and installing kubectl..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    mv kubectl /usr/local/bin/
+
+    echo "Installing Python dependencies..."
+    pip install --no-cache-dir requests pandas matplotlib plotly numpy
 
     echo "Cloning performance repository for scripts..."
     git clone "https://${DECODED_TOKEN}@github.com/armosec/perfornamce.git" /workspace
