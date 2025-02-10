@@ -250,13 +250,13 @@ def deploy_kubescape(
                 ' --set imagePullSecret.server=quay.io ' 
                 ' --set imagePullSecret.username=armosec+armosec_ro ' 
                 ' --set imagePullSecrets=armosec-readonly '
-                ' --set nodeAgent.image.repository=quay.io/armosec/node-agent ' 
+                ' --set nodeAgent.resources.limits.memory=1000Mi'
             )
             
             if private_node_agent:
                 additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
             else:
-                additional_params += ' --set nodeAgent.image.tag=v0.0.25 --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+                additional_params += ' --set nodeAgent.image.tag=v0.0.51 --set nodeAgent.image.repository=quay.io/armosec/node-agent'
             
             helm_command += ' ' + additional_params
         
