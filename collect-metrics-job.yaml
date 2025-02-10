@@ -19,6 +19,9 @@ data:
     echo "Starting setup_and_run.sh script..."
     START_TIME=$(date +%s)
 
+    # Decode the Git token
+    DECODED_TOKEN=$(echo "${GIT_TOKEN}" | base64 -d)
+    
     echo "Installing required packages..."
     apt-get update && apt-get install -y git curl apt-transport-https ca-certificates
 
@@ -122,7 +125,7 @@ spec:
               name: perf-channel-webhook
               key: url
         - name: DURATION_TIME
-          value: "$(DURATION_TIME)"
+          value: "5"    #"$(DURATION_TIME)"
         volumeMounts:
         - name: run-script
           mountPath: /scripts
