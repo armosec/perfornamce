@@ -51,6 +51,11 @@ data:
     # Get Helm version
     HELM_VERSION=$(kubectl get deployment -n kubescape -o jsonpath='{.items[0].metadata.labels.helm\.sh/chart}')
     CLEAN_HELM_VERSION=$(echo "$HELM_VERSION" | sed 's/[^a-zA-Z0-9._-]/_/g')
+
+    # Extract Image Versions (Excluding `http-request`)
+    IMAGE_VERSIONS=$(kubectl get pods -n kubescape -o jsonpath='{range .items[*]}{.metadata.name}{" -> "}{.spec.containers[*].image}{"\n"}{end}' |
+    awk -F'/' '{print $NF}' | awk -F':' '{if ($2 ~ /^v/) print $1": "$2; else print $1": v"$2}' |
+    sort -u)
     
     # Set up the output directory path with timestamp and helm version
     TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
@@ -70,6 +75,24 @@ data:
     git add "performance-inCluster/${TIMESTAMP}_helm_${CLEAN_HELM_VERSION}"
     git commit -m "Add performance test results - Duration: ${DURATION_TIME}m, Helm: ${HELM_VERSION}"
     git push origin main
+
+    LOG_URL="https://github.com/armosec/Logs/tree/main/performance-inCluster/${TIMESTAMP}_helm_${CLEAN_HELM_VERSION}"
+    echo "Log URL: ${LOG_URL}"
+
+    curl -X POST --data-urlencode "payload={
+        \"channel\": \"C06AJ92GHLM\",
+        \"username\": \"Performance-test\",
+        \"icon_emoji\": \":military_helmet:\",
+        \"text\": \"*Performance Test Completed!*\nHelm Chart: \`$HELM_VERSION\`\nDuration: *${EXACT_DURATION} minutes*\n<${LOG_URL}|View outputs>\",
+        \"attachments\": [{
+            \"color\": \"#007bff\",
+            \"fields\": [{
+                \"title\": \"Image Versions\",
+                \"value\": \"\`\`\`$IMAGE_VERSIONS\`\`\`\",
+                \"short\": false
+            }]
+        }]
+    }" "$WEBHOOK_URL"
 
 ---
 
