@@ -125,7 +125,7 @@ spec:
               name: perf-channel-webhook
               key: url
         - name: DURATION_TIME
-          value: "5"    #"$(DURATION_TIME)"
+          value: "$(DURATION_TIME)"
         volumeMounts:
         - name: run-script
           mountPath: /scripts
