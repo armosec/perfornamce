@@ -21,7 +21,7 @@ on:
       NODE_COUNT:
         description: 'Number of nodes'
         type: number
-        default: 3
+        default: 4
         required: true
       DURATION_TIME:
         description: 'How long to run before collecting metrics'
@@ -41,10 +41,10 @@ on:
         description: 'Your access key'
         type: string
         required: true
-      STORAGE_VERSION:
-        description: 'storage version'
-        type: string
-        required: false
+      # STORAGE_VERSION:
+      #   description: 'storage version'
+      #   type: string
+      #   required: false
       NODE_AGENT_VERSION:
         description: 'node agent version'
         type: string
@@ -56,6 +56,10 @@ on:
         default: false
       PRIVATE_NODE_AGENT:
         description: 'Private node agent version'
+        required: false
+        type: string
+      HELM_GIT_BRANCH:
+        description: 'Helm chart branch (e.g., main)'
         required: false
         type: string
       
@@ -117,6 +121,10 @@ jobs:
           
           if [ ! -z "${{ github.event.inputs.PRIVATE_NODE_AGENT }}" ]; then
             CMD="$CMD -private-node-agent ${{ github.event.inputs.PRIVATE_NODE_AGENT }}"
+          fi
+
+          if [ ! -z "${{ github.event.inputs.HELM_GIT_BRANCH }}" ]; then
+            CMD="$CMD -helm-git-branch ${{ github.event.inputs.HELM_GIT_BRANCH }}"
           fi
 
           echo "Running command: $CMD"

@@ -193,32 +193,61 @@ def deploy_kubescape(
     additional_helm_command: str = None,
     storage_image_tag: str = None, 
     node_agent_image_tag: str = None,
-    private_node_agent: str = None
+    private_node_agent: str = None,
+    helm_git_branch: str = None  
 ):
     try:
-        print("Adding Kubescape Helm repository...")
-        run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
-        run_command('helm repo update')
+        if helm_git_branch:
+            # If the user provides only a branch name, default to Kubescape's helm-charts repo
+            if not helm_git_branch.startswith("http"):
+                repo_url = "https://github.com/kubescape/helm-charts.git"
+                branch_name = helm_git_branch
+                print(f"Using default repo {repo_url} with branch {branch_name}")
+            else:
+                repo_url = helm_git_branch
+                branch_name = None  # Extracting branch name won't be needed
+
+            repo_name = repo_url.split('/')[-1].replace('.git', '')
+            helm_chart_path = f"/tmp/{repo_name}"
+
+            # Remove existing directory if it exists
+            if os.path.exists(helm_chart_path):
+                run_command(f"rm -rf {helm_chart_path}")
+
+            # Clone the repo with branch
+            clone_command = f"git clone --depth 1 -b {branch_name} {repo_url} {helm_chart_path}" if branch_name else f"git clone --depth 1 {repo_url} {helm_chart_path}"
+
+            run_command(clone_command)
+
+            # Detect the correct path
+            default_chart_path = os.path.join(helm_chart_path, "kubescape-operator")
+            alternative_chart_path = os.path.join(helm_chart_path, "charts", "kubescape-operator")
+
+            # Check which path exists
+            if os.path.exists(default_chart_path):
+                chart_location = default_chart_path
+            elif os.path.exists(alternative_chart_path):
+                chart_location = alternative_chart_path
+            else:
+                print(f"Error: Could not find the kubescape-operator chart in {helm_chart_path}")
+                exit(1)
+                
+        else:
+            print("Adding Kubescape Helm repository...")
+            run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
+            run_command('helm repo update')
+            chart_location = "kubescape/kubescape-operator"
         
+        # Run 'helm dependency build' only if using a Git branch
+        if helm_git_branch:
+            print(f"Running 'helm dependency build' for {chart_location} (Git branch detected)...")
+            run_command(f"helm dependency build {chart_location}")
+            
         print("Deploying Kubescape Operator...")
         cluster_context = subprocess.run(['kubectl', 'config', 'current-context'], check=True, capture_output=True, text=True).stdout.strip()
-        
-        # quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
-        # quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
 
-        # if quay_password and quay_username:
-        #     print("Environment variables are correctly set.")
-        # else:
-        #     print("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
-        #     print(f"QUAYIO_REGISTRY_PASSWORD: {quay_password}")
-        #     print(f"QUAYIO_REGISTRY_USERNAME: {quay_username}")
-        # quay_password = os.environ.get("QUAYIO_REGISTRY_PASSWORD")
-        # quay_username = os.environ.get("QUAYIO_REGISTRY_USERNAME")
-        # if not quay_password or not quay_username:
-        #     raise ValueError("QUAYIO_REGISTRY_PASSWORD or QUAYIO_REGISTRY_USERNAME not set in environment.")
-            
         helm_command = (
-            f'helm upgrade --install kubescape kubescape/kubescape-operator '
+            f'helm upgrade --install kubescape {chart_location} '
             f'-n kubescape --create-namespace '
             f'--set clusterName={cluster_context} '
             f'--set account={account} '
@@ -227,19 +256,16 @@ def deploy_kubescape(
             f'--set nodeAgent.env[0].name=PYROSCOPE_SERVER_SVC '
             f'--set nodeAgent.env[0].value=http://pyroscope-distributor.monitoring.svc.cluster.local.:4040'
         )
-        
+
         if version:
             helm_command += f' --version {version}'
-        
-        # Add storage image repository and tag if provided
+
         if storage_image_tag:
             helm_command += f' --set storage.image.tag={storage_image_tag} --set storage.image.repository=quay.io/kubescape/storage'
-        
-        # Add node agent image repository and tag if provided
+
         if node_agent_image_tag:
             helm_command += f' --set nodeAgent.image.tag={node_agent_image_tag} --set nodeAgent.image.repository=quay.io/kubescape/node-agent'
-        
-        # Add the additional Helm parameters if -kdr is enabled
+
         if enable_kdr:
             additional_params = (
                 ' --set alertCRD.installDefault=true ' 
@@ -252,18 +278,19 @@ def deploy_kubescape(
                 ' --set imagePullSecrets=armosec-readonly '
                 ' --set nodeAgent.resources.limits.memory=1000Mi'
             )
-            
+
             if private_node_agent:
                 additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
             else:
                 additional_params += ' --set nodeAgent.image.tag=v0.0.51 --set nodeAgent.image.repository=quay.io/armosec/node-agent'
-            
+
             helm_command += ' ' + additional_params
-        
+
         run_command(helm_command)
         time.sleep(30)  # Wait for the operator to deploy
         print("waiting for operator to deploy - 30 sec")
         print("Kubescape Operator deployed successfully.")
+
         if additional_helm_command:
             print("Deploying additional Helm chart...", additional_helm_command)
             run_command(additional_helm_command)
@@ -273,7 +300,6 @@ def deploy_kubescape(
         print(f"Failed to deploy Kubescape with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
         exit(1)
-
 
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
@@ -391,6 +417,7 @@ def main():
     parser.add_argument('-storage-version', type=str, help="Specify the storage image version")
     parser.add_argument('-node-agent-version', type=str, help="Specify the node agent image version")
     parser.add_argument('-private-node-agent', type=str, help="Specify the private node agent version")
+    parser.add_argument('-helm-git-branch', type=str, help="Git branch name or full repository URL for custom Helm chart")
 
 
     args = parser.parse_args()
@@ -428,7 +455,8 @@ def main():
         additional_helm_command=args.additional_helm_command,
         storage_image_tag=args.storage_version,
         node_agent_image_tag=args.node_agent_version,
-        private_node_agent=args.private_node_agent  
+        private_node_agent=args.private_node_agent,
+        helm_git_branch=args.helm_git_branch
     ) 
     
     time.sleep(40)  # Wait for the operator to deploy
@@ -439,7 +467,7 @@ def main():
     # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()
 
-    # # Step 5: Check if any pods are in CrashLoopBackOff state
+    # Step 5: Check if any pods are in CrashLoopBackOff state
     print("Checking for pods in CrashLoopBackOff state...")
     check_crashloop_pods(namespace="kubescape") 
 
