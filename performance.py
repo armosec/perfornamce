@@ -321,7 +321,7 @@ def get_node_agent_tag_from_git():
 
         # Parse the YAML content directly from response
         data = yaml.safe_load(response.text)
-        tag = data.get("KubescapeHelmCommandRuntimeThreatDetectionFeatureValues", {}).get("nodeAgent", {}).get("image", {}).get("tag", None)
+        tag = data.get('dashboardBE', {}).get('config', {}).get('KubescapeHelmCommandRuntimeThreatDetectionFeatureValues', {}).get('nodeAgent.image.tag', 'No tag found')
         
         if tag:
             print(f"Found nodeAgent.image.tag in GitHub: {tag}")
