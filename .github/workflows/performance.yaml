@@ -88,6 +88,7 @@ jobs:
             --region fra1 \
             --vpc-uuid 7ff72b70-98a3-4743-9e83-2f0131047d39 \
             --node-pool "name=default-pool;size=${{ github.event.inputs.NODE_SIZE }};count=${{ github.event.inputs.NODE_COUNT }}" \
+            --tag "helmTest" \
             --wait
 
       - name: Configure kubectl
@@ -104,6 +105,7 @@ jobs:
         env:
           QUAYIO_REGISTRY_PASSWORD: ${{ secrets.QUAYIO_REGISTRY_PASSWORD }}
           QUAYIO_REGISTRY_USERNAME: ${{ secrets.QUAYIO_REGISTRY_USERNAME }}
+          PERFO_GITHUB_TOKEN: ${{ secrets.PERFO_GITHUB_TOKEN }}
         run: |
           CMD="python performance.py -skip-cluster -nodes ${{ github.event.inputs.NODE_COUNT }} -account ${{ github.event.inputs.ACCOUNT_ID }} -accessKey ${{ github.event.inputs.ACCESS_KEY }}"
 

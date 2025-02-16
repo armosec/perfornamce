@@ -1,5 +1,7 @@
 import os
 import time
+import yaml
+import requests
 import argparse
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -194,6 +196,7 @@ def deploy_kubescape(
     storage_image_tag: str = None, 
     node_agent_image_tag: str = None,
     private_node_agent: str = None,
+    released_private_node_agent: str = None,
     helm_git_branch: str = None  
 ):
     try:
@@ -281,8 +284,10 @@ def deploy_kubescape(
 
             if private_node_agent:
                 additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+            elif released_private_node_agent:
+                additional_params += f' --set nodeAgent.image.tag={released_private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
             else:
-                additional_params += ' --set nodeAgent.image.tag=v0.0.51 --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+                print("ERROR: No private_node_agent provided and no released_private_node_agent found.")
 
             helm_command += ' ' + additional_params
 
@@ -301,6 +306,33 @@ def deploy_kubescape(
         print(f"Error output:\n{e.stderr}")
         exit(1)
 
+def get_node_agent_tag_from_git():
+    """
+    Fetch nodeAgent.image.tag from values.yaml in the GitHub repository.
+    """
+    repo_url = "https://raw.githubusercontent.com/armosec/Helm/cyberarmor-be-apps/charts/dashboardBEFrontegg/values.yaml"
+    github_token = os.getenv("PERFO_GITHUB_TOKEN")  # Get token from GitHub Actions
+
+    headers = {"Authorization": f"token {github_token}"} if github_token else {}
+
+    try:
+        response = requests.get(repo_url, headers=headers)
+        response.raise_for_status()  # Raise error if request fails
+
+        # Parse the YAML content directly from response
+        data = yaml.safe_load(response.text)
+        tag = data.get("KubescapeHelmCommandRuntimeThreatDetectionFeatureValues", {}).get("nodeAgent", {}).get("image", {}).get("tag", None)
+        
+        if tag:
+            print(f"Found nodeAgent.image.tag in GitHub: {tag}")
+            return tag
+        else:
+            print("Error: nodeAgent.image.tag not found in GitHub values.yaml.")
+            return None
+    except Exception as e:
+        print(f"Error fetching values.yaml from GitHub: {e}")
+        return None
+    
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
     start_time = time.time()  
@@ -446,6 +478,7 @@ def main():
     deploy_kube_prometheus_stack()
     deploy_pyroscope()
     
+    released_private_node_agent = get_node_agent_tag_from_git()
     # Step 3: Deploy Kubescape using Helm
     deploy_kubescape(
         account=args.account,
@@ -456,6 +489,7 @@ def main():
         storage_image_tag=args.storage_version,
         node_agent_image_tag=args.node_agent_version,
         private_node_agent=args.private_node_agent,
+        released_private_node_agent=released_private_node_agent,
         helm_git_branch=args.helm_git_branch
     ) 
     
