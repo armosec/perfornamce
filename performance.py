@@ -331,6 +331,7 @@ def get_node_agent_tag_from_git():
             return None
     except Exception as e:
         print(f"Error fetching values.yaml from GitHub: {e}")
+        exit(1)
         return None
     
 # Step 3: Wait for the cluster to be ready
