@@ -70,6 +70,7 @@ data:
     echo "Running tests with specified duration of ${DURATION_TIME} minutes..."
     python get_data_from_prometheus.py
     python get_pprof.py
+    python analyze_thresholds.py 
     python check_logs.py
     
     # Change to Logs repo directory to commit and push
@@ -83,11 +84,56 @@ data:
     LOG_URL="https://github.com/armosec/Logs/tree/main/performance-inCluster/${TIMESTAMP}_helm_${CLEAN_HELM_VERSION}"
     echo "Log URL: ${LOG_URL}"
 
+    REPORT_FILE="${OUTPUT_DIR}/threshold_report.json"
+    if [ -f "$REPORT_FILE" ]; then
+        # Use Python to read and format the breach information
+        BREACH_INFO=$(python3 - <<EOF
+    import json
+    with open('${REPORT_FILE}') as f:
+        report = json.load(f)
+
+    breaches = []
+    if report['summary']['total_memory_violations'] > 0 or report['summary']['total_cpu_violations'] > 0:
+        breaches.append("*⚠️ Threshold Breaches Detected:*")
+        
+        # Format Memory violations
+        for violation in report['violations']['Memory']:
+            pod = violation['pod']
+            max_value = violation['max_value']
+            duration = violation['duration_seconds']
+            breaches.append(f"• Memory breach in pod `{pod}`:")
+            breaches.append(f"  - Peak: {max_value} MiB")
+            breaches.append(f"  - Duration: {duration}s")
+        
+        # Format CPU violations
+        for violation in report['violations']['CPU']:
+            pod = violation['pod']
+            max_value = violation['max_value']
+            duration = violation['duration_seconds']
+            breaches.append(f"• CPU breach in pod `{pod}`:")
+            breaches.append(f"  - Peak: {max_value} cores")
+            breaches.append(f"  - Duration: {duration}s")
+
+    print('\n'.join(breaches) if breaches else '')
+    EOF
+    )
+    fi
+
+    # Prepare the Slack message with breach information
+    if [ -n "$BREACH_INFO" ]; then
+        BREACH_ATTACHMENT=', {
+            "color": "#FF0000",
+            "text": "'"${BREACH_INFO}"'"
+        }'
+    else
+        BREACH_ATTACHMENT=""
+    fi
+
     curl -X POST --data-urlencode "payload={
         \"channel\": \"C06AJ92GHLM\",
         \"username\": \"Performance-test\",
         \"icon_emoji\": \":military_helmet:\",
-        \"text\": \"*Performance Test Completed!*\nHelm Chart: \`$HELM_VERSION\`\nDuration: *${EXACT_DURATION} minutes*\n<${LOG_URL}|View outputs>\",
+        \"text\": \"*Performance Test Completed!*\nHelm Chart: \`$HELM_VERSION\`\nDuration: *${EXACT_DURATION} minutes*\n<${LOG_URL}|View outputs>\n\n⚠️ *IMPORTANT REMINDER:*\nPlease don't forget to scale down the cluster in the url: <https://cloud.digitalocean.com/kubernetes/clusters?i=17a137|Kubernetes Clusters>\",
         \"attachments\": [{
             \"color\": \"#007bff\",
             \"fields\": [{
@@ -95,7 +141,7 @@ data:
                 \"value\": \"\`\`\`$IMAGE_VERSIONS\`\`\`\",
                 \"short\": false
             }]
-        }]
+        }${BREACH_ATTACHMENT}]
     }" "$WEBHOOK_URL"
 
 ---
