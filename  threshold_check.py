@@ -171,8 +171,8 @@ class ThresholdChecker:
 if __name__ == "__main__":
     checker = ThresholdChecker(
         output_dir="output",
-        memory_threshold=500,    # 500 MiB
-        cpu_threshold=0.5,       # 0.5 cores
-        duration_threshold=30     # 30 seconds
+        memory_threshold=350,    # 500 MiB
+        cpu_threshold=0.1,       # 0.5 cores
+        duration_threshold=10     # 30 seconds
     )
     checker.run()
