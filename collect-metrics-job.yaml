@@ -70,7 +70,7 @@ data:
     echo "Running tests with specified duration of ${DURATION_TIME} minutes..."
     python get_data_from_prometheus.py
     python get_pprof.py
-    python analyze_thresholds.py 
+    python  threshold_check.py 
     python check_logs.py
     
     # Change to Logs repo directory to commit and push
