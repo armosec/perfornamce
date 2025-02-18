@@ -36,6 +36,11 @@ data:
     echo "Cloning performance repository for scripts..."
     git clone "https://${DECODED_TOKEN}@github.com/armosec/perfornamce.git" /workspace
     cd /workspace
+
+    # Add these debug lines
+    echo "Listing files in workspace directory:"
+    ls -la /workspace/
+    echo "Current working directory: $(pwd)"
     
     echo "Cloning Logs repository (shallow clone)..."
     git clone --depth 1 "https://${DECODED_TOKEN}@github.com/armosec/Logs.git" /workspace/Logs

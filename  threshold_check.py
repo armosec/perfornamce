@@ -174,7 +174,7 @@ if __name__ == "__main__":
     logger.info(f"Using output directory: {output_dir}")
     
     checker = ThresholdChecker(
-        output_dir="output",
+        output_dir=output_dir,
         memory_threshold=350,    # 500 MiB
         cpu_threshold=0.1,       # 0.5 cores
         duration_threshold=10     # 30 seconds
