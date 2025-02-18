@@ -169,6 +169,10 @@ class ThresholdChecker:
             logger.info("No threshold violations detected.")
 
 if __name__ == "__main__":
+    
+    output_dir = os.getenv('OUTPUT_DIR', 'output')
+    logger.info(f"Using output directory: {output_dir}")
+    
     checker = ThresholdChecker(
         output_dir="output",
         memory_threshold=350,    # 500 MiB
