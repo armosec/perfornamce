@@ -131,7 +131,11 @@ data:
             "text": "'"${BREACH_INFO}"'"
         }'
     else
-        BREACH_ATTACHMENT=""
+            BREACH_INFO="No memory or CPU breaches detected."
+    BREACH_ATTACHMENT=', {
+        "color": "#00FF00",
+        "text": "'"${BREACH_INFO}"'"
+    }'
     fi
 
     curl -X POST --data-urlencode "payload={
