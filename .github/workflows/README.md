@@ -12,8 +12,8 @@ The workflow is manually triggered using `workflow_dispatch` with user-defined i
 | NODE_SIZE | Size of the nodes | choice | s-8vcpu-16gb | ✅ |
 | NODE_COUNT | Number of nodes | number | 4 | ✅ |
 | DURATION_TIME | Duration before collecting metrics (minutes) | number | 10 | ✅ |
-| ACCOUNT_ID | Your account ID | string | N/A | ✅ |
-| ACCESS_KEY | Your access key | string | N/A | ✅ |
+| KUBERNETES_VERSION | Kubernetes version to use | string | N/A | ❌ |
+| STORAGE_VERSION | storage version | string | N/A | ❌ |
 | NODE_AGENT_VERSION | Node agent version | string | N/A | ❌ |
 | ENABLE_KDR | Enable KDR | boolean | false | ❌ |
 | PRIVATE_NODE_AGENT | Private node agent version | string | N/A | ❌ |
@@ -56,6 +56,8 @@ Execute the collect metrics job:
 #### Push Results to Logs Repository: Commits and pushes logs to GitHub for later analysis to the  [performance-inCluste](https://github.com/armosec/Logs/tree/main/performance-inCluster) repo
 
 **Send Slack Notification**: Notifies the Slack channel [#performance-tests](https://app.slack.com/client/T020T1V84TT/C06AJ92GHLM) with details of the performance test run, including Helm chart versions and collected metrics.
+
+**The results of the scan will be in the** `HelmPerformance` (account ID: 5a02d4af-8026-414f-9baf-fde6b2051136)
 
 
 
