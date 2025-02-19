@@ -28,23 +28,22 @@ on:
         type: number
         default: 10
         required: true
-      # KUBERNETES_VERSION:
-      #   description: 'Kubernetes version to use'
+      KUBERNETES_VERSION:
+        description: 'Kubernetes version to use'
+        type: string
+        required: false
+      # ACCOUNT_ID:
+      #   description: 'Your account ID'
       #   type: string
-      #   default: '1.31'
       #   required: true
-      ACCOUNT_ID:
-        description: 'Your account ID'
-        type: string
-        required: true
-      ACCESS_KEY:
-        description: 'Your access key'
-        type: string
-        required: true
-      # STORAGE_VERSION:
-      #   description: 'storage version'
+      # ACCESS_KEY:
+      #   description: 'Your access key'
       #   type: string
-      #   required: false
+      #   required: true
+      STORAGE_VERSION:
+        description: 'storage version'
+        type: string
+        required: false
       NODE_AGENT_VERSION:
         description: 'node agent version'
         type: string
@@ -84,12 +83,19 @@ jobs:
 
       - name: Create Kubernetes Cluster
         run: |
-          doctl kubernetes cluster create ${{ github.event.inputs.CLUSTER_NAME }} \
+          CMD="doctl kubernetes cluster create ${{ github.event.inputs.CLUSTER_NAME }} \
             --region fra1 \
             --vpc-uuid 7ff72b70-98a3-4743-9e83-2f0131047d39 \
-            --node-pool "name=default-pool;size=${{ github.event.inputs.NODE_SIZE }};count=${{ github.event.inputs.NODE_COUNT }}" \
-            --tag "helmTest" \
-            --wait
+            --node-pool \"name=default-pool;size=${{ github.event.inputs.NODE_SIZE }};count=${{ github.event.inputs.NODE_COUNT }}\" \
+            --tag \"helmTest\" \
+            --wait"
+
+          if [ ! -z "${{ github.event.inputs.KUBERNETES_VERSION }}" ]; then
+            CMD="$CMD --version ${{ github.event.inputs.KUBERNETES_VERSION }}"
+          fi
+
+          echo "Running command: $CMD"
+          eval $CMD
 
       - name: Configure kubectl
         run: |
@@ -106,8 +112,10 @@ jobs:
           QUAYIO_REGISTRY_PASSWORD: ${{ secrets.QUAYIO_REGISTRY_PASSWORD }}
           QUAYIO_REGISTRY_USERNAME: ${{ secrets.QUAYIO_REGISTRY_USERNAME }}
           PERFO_GITHUB_TOKEN: ${{ secrets.PERFO_GITHUB_TOKEN }}
+          ACCOUNT_ID: ${{ secrets.PERFO_ACCOUNT_ID }}
+          ACCESS_KEY: ${{ secrets.PERFO_ACCESS_KEY }}
         run: |
-          CMD="python performance.py -skip-cluster -nodes ${{ github.event.inputs.NODE_COUNT }} -account ${{ github.event.inputs.ACCOUNT_ID }} -accessKey ${{ github.event.inputs.ACCESS_KEY }}"
+          CMD="python performance.py -skip-cluster -nodes ${{ github.event.inputs.NODE_COUNT }} -account $ACCOUNT_ID -accessKey $ACCESS_KEY"
 
           if [ ! -z "${{ github.event.inputs.STORAGE_VERSION }}" ]; then
             CMD="$CMD -storage-version ${{ github.event.inputs.STORAGE_VERSION }}"
