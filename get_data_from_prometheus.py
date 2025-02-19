@@ -19,8 +19,8 @@ class PrometheusConfig:
     # url: str = "http://localhost:9090"
     url: str = "http://prometheus-operated.monitoring.svc.cluster.local:9090"
     namespace: str = "kubescape"
-    pod_regex: str = "node-agent.*"
-    step_minutes: str = "1"
+    pod_regex: str = ".*"  # All pods
+    step_seconds: str = "30"  # Step size for Prometheus queries
 
 class PrometheusMetricsCollector:
     def __init__(self, config: Optional[PrometheusConfig] = None):
@@ -57,7 +57,7 @@ class PrometheusMetricsCollector:
             'query': query,
             'start': self.start_time.isoformat(),
             'end': self.end_time.isoformat(),
-            'step': f"{self.config.step_minutes}m"
+            'step': f"{self.config.step_seconds}s"
         }
         
         try:

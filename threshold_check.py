@@ -15,14 +15,12 @@ class ThresholdChecker:
     def __init__(
         self,
         output_dir: str = "output",
-        memory_threshold: float = 500,
-        cpu_threshold: float = 0.5,
-        duration_threshold: int = 30  # in seconds
+        duration_threshold: int = 30,  # in seconds
+        pod_thresholds: Optional[Dict[str, Dict[str, float]]] = None
     ):
         self.output_dir = output_dir
-        self.memory_threshold = memory_threshold
-        self.cpu_threshold = cpu_threshold
         self.duration_threshold = duration_threshold
+        self.pod_thresholds = pod_thresholds or {}
         
         self.violations = {
             "Memory": [],
@@ -32,6 +30,12 @@ class ThresholdChecker:
     def calculate_breach_percentage(self, value: float, threshold: float) -> float:
         """Calculate how much the value exceeded the threshold by percentage."""
         return ((value - threshold) / threshold) * 100
+
+    def get_threshold(self, pod: str, metric_type: str) -> Optional[float]:
+        """Get the threshold for a specific pod and metric type."""
+        if pod in self.pod_thresholds and metric_type in self.pod_thresholds[pod]:
+            return self.pod_thresholds[pod][metric_type]
+        return None
 
     def check_thresholds(self, file_path: str, metric_type: str) -> None:
         """Check if any values exceed the threshold for a sustained period."""
@@ -45,13 +49,18 @@ class ThresholdChecker:
                 logger.info(f"{metric_type} data file is empty.")
                 return
             
-            threshold = self.memory_threshold if metric_type == "Memory" else self.cpu_threshold
             df["Time"] = pd.to_datetime(df["Time"])
             
             # Analyze each pod separately
             for pod in df["Pod"].unique():
                 pod_data = df[df["Pod"] == pod].copy()
                 pod_data = pod_data.sort_values("Time")
+                
+                # Get the threshold for the current pod
+                threshold = self.get_threshold(pod, metric_type)
+                if threshold is None:
+                    logger.warning(f"No threshold defined for pod {pod} and metric {metric_type}. Skipping.")
+                    continue
                 
                 # Find periods where threshold is exceeded
                 pod_data["violation"] = pod_data["Value"] > threshold
@@ -115,8 +124,6 @@ class ThresholdChecker:
                 "total_cpu_violations": len(self.violations["CPU"]),
                 "violations_by_pod": pod_summary,
                 "thresholds": {
-                    "memory_mib": self.memory_threshold,
-                    "cpu_cores": self.cpu_threshold,
                     "duration_seconds": self.duration_threshold
                 }
             },
@@ -152,8 +159,6 @@ class ThresholdChecker:
         """Execute threshold checking on collected metrics."""
         logger.info(
             f"Starting threshold analysis:"
-            f"\n  Memory Threshold: {self.memory_threshold} MiB"
-            f"\n  CPU Threshold: {self.cpu_threshold} cores"
             f"\n  Duration Threshold: {self.duration_threshold} seconds"
         )
         
@@ -173,10 +178,19 @@ if __name__ == "__main__":
     output_dir = os.getenv('OUTPUT_DIR', 'output')
     logger.info(f"Using output directory: {output_dir}")
     
+    pod_thresholds = {
+        "kubescape": {"Memory": 400, "CPU": 0.2},
+        "kubevuln": {"Memory": 500, "CPU": 0.3},
+        "node-agent": {"Memory": 300, "CPU": 0.1},
+        "operator": {"Memory": 200, "CPU": 0.05},
+        "otel-collector": {"Memory": 600, "CPU": 0.4},
+        "storage": {"Memory": 100, "CPU": 0.05},
+        "synchronizer": {"Memory": 150, "CPU": 0.1}
+    }
+    
     checker = ThresholdChecker(
         output_dir=output_dir,
-        memory_threshold=350,    # 500 MiB
-        cpu_threshold=0.1,       # 0.5 cores
-        duration_threshold=10     # 30 seconds
+        duration_threshold=10,           # 10 seconds
+        pod_thresholds=pod_thresholds
     )
     checker.run()
