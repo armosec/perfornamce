@@ -53,11 +53,13 @@ Execute the collect metrics job:
 
 `check_logs.py` - Verifies logs for anomalies (looking for error / fail / panic).
 
-#### Push Results to Logs Repository: Commits and pushes logs to GitHub for later analysis to the  [performance-inCluste](https://github.com/armosec/Logs/tree/main/performance-inCluster) repo
+**1.Results to Logs Repository:** Commits and pushes logs to GitHub for later analysis to the  [performance-inCluste](https://github.com/armosec/Logs/tree/main/performance-inCluster) repo.
 
-**Send Slack Notification**: Notifies the Slack channel [#performance-tests](https://app.slack.com/client/T020T1V84TT/C06AJ92GHLM) with details of the performance test run, including Helm chart versions and collected metrics.
+ **2.pprof profiles:** you can open via [speedscope](https://www.speedscope.app/)
 
-**The results of the scan will be in the** `HelmPerformance` (account ID: 5a02d4af-8026-414f-9baf-fde6b2051136)
+**3.Slack Notification**: Notifies the Slack channel [#performance-tests](https://app.slack.com/client/T020T1V84TT/C06AJ92GHLM) with details of the performance test run, including Helm chart versions and collected metrics.
+
+**4.The results of the scan will be in the** `HelmPerformance` ARMO account (account ID: 5a02d4af-8026-414f-9baf-fde6b2051136)
 
 
 
