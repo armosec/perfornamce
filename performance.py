@@ -7,6 +7,16 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
         
+NODE_SIZES = {
+    "s-2vcpu-2gb": {"vcpu": 2, "memory_gb": 2},
+    "s-4vcpu-8gb": {"vcpu": 4, "memory_gb": 8},
+    "s-8vcpu-16gb": {"vcpu": 8, "memory_gb": 16},
+    "s-16vcpu-32gb": {"vcpu": 16, "memory_gb": 32}
+}
+
+DEFAULT_NODE_SIZE = "s-4vcpu-16gb"
+DEFAULT_NODE_COUNT = 4        
+        
 def run_command(command, cwd=None):
     try:
         result = subprocess.run(command, check=True, capture_output=True, text=True, shell=True, cwd=cwd)
@@ -334,6 +344,97 @@ def get_node_agent_tag_from_git():
         exit(1)
         return None
     
+def calculate_resources(node_size, node_count):
+    """Calculates resource requests and limits based on node size, count, and cluster resources."""
+    
+    node_size = node_size or DEFAULT_NODE_SIZE
+    node_count = node_count or DEFAULT_NODE_COUNT
+
+    if node_size not in NODE_SIZES:
+        print(f"Warning: Unknown NODE_SIZE '{node_size}'. Using default '{DEFAULT_NODE_SIZE}'.")
+        node_size = DEFAULT_NODE_SIZE  
+
+    vcpu_per_node = NODE_SIZES[node_size]["vcpu"]
+    memory_per_node_gb = NODE_SIZES[node_size]["memory_gb"]
+
+    # Cluster-wide capacity
+    total_vcpu = vcpu_per_node * node_count
+    total_memory_gb = memory_per_node_gb * node_count
+
+    print(f"Cluster Resources - Nodes: {node_count}, Total vCPU: {total_vcpu}, Total Memory: {total_memory_gb}GB")
+
+    # Get the total number of resources in the cluster
+    total_resources = int(subprocess.run(
+        ['kubectl', 'get', 'all', '-A', '--no-headers'],
+        check=True, capture_output=True, text=True
+    ).stdout.strip().count("\n"))
+
+    # **Node-agent calculations**
+    node_agent_cpu_request = int(0.025 * vcpu_per_node * 1000)
+    node_agent_cpu_limit = int(0.10 * vcpu_per_node * 1000)
+    node_agent_memory_request = int(0.025 * memory_per_node_gb * 1024)
+    node_agent_memory_limit = int(0.10 * memory_per_node_gb * 1024)
+
+    # **Storage component calculations**
+    storage_memory_request = int(0.2 * total_resources)
+    storage_memory_limit = int(0.8 * total_resources)
+
+    # **KubeVuln calculations**
+    largest_image_size_mb = 1000
+    kubevuln_memory_limit = largest_image_size_mb + 400
+
+    config = {
+        "nodeAgent": {
+            "resources": {
+                "requests": {
+                    "cpu": f"{node_agent_cpu_request}m",
+                    "memory": f"{node_agent_memory_request}Mi"
+                },
+                "limits": {
+                    "cpu": f"{node_agent_cpu_limit}m",
+                    "memory": f"{node_agent_memory_limit}Mi"
+                }
+            }
+        },
+        "storage": {
+            "resources": {
+                "requests": {
+                    "memory": f"{storage_memory_request}Mi"
+                },
+                "limits": {
+                    "memory": f"{storage_memory_limit}Mi"
+                }
+            }
+        },
+        "kubevuln": {
+            "resources": {
+                "limits": {
+                    "memory": f"{kubevuln_memory_limit}Mi"
+                }
+            }
+        }
+    }
+
+    return config
+    
+def update_kubescape_helm(node_size, node_count):
+    """Updates the Kubescape deployment using Helm based on cluster specifications."""
+    print("Updating Kubescape configuration...")
+
+    config = calculate_resources(node_size, node_count)
+
+    # Save config
+    with open("kubescape-autoscale.yaml", "w") as file:
+        yaml.dump(config, file, default_flow_style=False)
+
+    # Apply update via Helm
+    run_command(
+        "helm upgrade --install kubescape kubescape/kubescape-operator "
+        "-n kubescape -f kubescape-autoscale.yaml"
+    )
+    print("Kubescape updated with optimized resource allocation.")
+    
+    
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
     start_time = time.time()  
@@ -439,7 +540,8 @@ def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Deploy Kubescape with optional Helm parameters")
     parser.add_argument('-kdr', action='store_true', help="Enable KDR capabilities")
-    parser.add_argument('-nodes', type=int, default=3, help="Number of nodes (default is 3)")
+    parser.add_argument('-nodes', type=int, default=DEFAULT_NODE_COUNT, help="Number of nodes (default is 4)")
+    parser.add_argument('-node_size', type=str, default=DEFAULT_NODE_SIZE, help="Node type (default is s-4vcpu-16gb)")
     parser.add_argument('-account', type=str, required=True, help="Account ID")
     parser.add_argument('-accessKey', type=str, required=True, help="Access key")
     parser.add_argument('-duration', type=int, default=4, help="Duration time in hours (default is 4)")
@@ -501,8 +603,14 @@ def main():
 
     # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()
-
-    # Step 5: Check if any pods are in CrashLoopBackOff state
+    
+    # Step 5: Update Kubescape Helm chart with optimized resources
+    optimized_resources = calculate_resources(node_size=args.node_size, node_count=node_count)
+    update_kubescape_helm(node_size=args.node_size, node_count=node_count)
+    print("Kubescape Helm chart updated with optimized resources.")
+    time.sleep(30)  # Wait for the operator
+    
+    # Step 6: Check if any pods are in CrashLoopBackOff state
     print("Checking for pods in CrashLoopBackOff state...")
     check_crashloop_pods(namespace="kubescape") 
 
