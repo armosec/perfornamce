@@ -418,21 +418,41 @@ def calculate_resources(node_size, node_count):
     return config
     
 def update_kubescape_helm(node_size, node_count):
-    """Updates the Kubescape deployment using Helm based on cluster specifications."""
+    """Updates the Kubescape deployment using Helm based on cluster specifications and fixes ks-cloud-config issues."""
     print("Updating Kubescape configuration...")
 
+    # Step 1: Calculate optimal resources
     config = calculate_resources(node_size, node_count)
 
-    # Save config
+    # Step 2: Save the configuration
     with open("kubescape-autoscale.yaml", "w") as file:
         yaml.dump(config, file, default_flow_style=False)
 
-    # Apply update via Helm
-    run_command(
+    # Step 3: Fix ks-cloud-config issue (DELETE if exists)
+    print("Checking for existing ks-cloud-config ConfigMap...")
+
+    result = subprocess.run(
+        ['kubectl', 'get', 'configmap', 'ks-cloud-config', '-n', 'kubescape'],
+        capture_output=True, text=True
+    )
+
+    if result.returncode == 0:  # ConfigMap exists
+        print("ks-cloud-config ConfigMap found. Deleting it to avoid Helm upgrade failure...")
+        subprocess.run(['kubectl', 'delete', 'configmap', 'ks-cloud-config', '-n', 'kubescape'], check=True)
+        print("ks-cloud-config ConfigMap deleted successfully.")
+
+    else:
+        print("No ks-cloud-config ConfigMap found. Proceeding with Helm upgrade...")
+
+    # Step 4: Apply the update via Helm
+    helm_command = (
         "helm upgrade --install kubescape kubescape/kubescape-operator "
         "-n kubescape -f kubescape-autoscale.yaml"
     )
+
+    run_command(helm_command)
     print("Kubescape updated with optimized resource allocation.")
+
     
     
 # Step 3: Wait for the cluster to be ready
