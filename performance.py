@@ -437,14 +437,31 @@ def update_kubescape_helm(node_size, node_count):
     )
 
     if result.returncode == 0:  # ConfigMap exists
-        print("ks-cloud-config ConfigMap found. Deleting it to avoid Helm upgrade failure...")
+        print("⚠️ ks-cloud-config ConfigMap found. Deleting it to avoid Helm upgrade failure...")
         subprocess.run(['kubectl', 'delete', 'configmap', 'ks-cloud-config', '-n', 'kubescape'], check=True)
         print("ks-cloud-config ConfigMap deleted successfully.")
 
     else:
         print("No ks-cloud-config ConfigMap found. Proceeding with Helm upgrade...")
 
-    # Step 4: Apply the update via Helm
+    # Step 4: Ensure Helm Repo Exists
+    print("Ensuring Kubescape Helm repository is added...")
+    
+    helm_repo_check = subprocess.run(
+        "helm repo list | grep kubescape",
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+
+    if helm_repo_check.returncode != 0:
+        print("Kubescape Helm repository not found. Adding it now...")
+        run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
+    
+    # Always update Helm repositories
+    run_command('helm repo update')
+
+    # Step 5: Apply the update via Helm
     helm_command = (
         "helm upgrade --install kubescape kubescape/kubescape-operator "
         "-n kubescape -f kubescape-autoscale.yaml"
@@ -453,7 +470,6 @@ def update_kubescape_helm(node_size, node_count):
     run_command(helm_command)
     print("Kubescape updated with optimized resource allocation.")
 
-    
     
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
