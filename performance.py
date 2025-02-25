@@ -207,7 +207,7 @@ def deploy_kubescape(
     node_agent_image_tag: str = None,
     private_node_agent: str = None,
     released_private_node_agent: str = None,
-    helm_git_branch: str = None  
+    helm_git_branch: str = None
 ):
     try:
         git_commit_hash = None  # Initialize git commit hash variable
@@ -220,20 +220,17 @@ def deploy_kubescape(
                 print(f"Using default repo {repo_url} with branch {branch_name}")
             else:
                 repo_url = helm_git_branch
-                branch_name = None  # Extracting branch name won't be needed
+                branch_name = None
 
             repo_name = repo_url.split('/')[-1].replace('.git', '')
             helm_chart_path = f"/tmp/{repo_name}"
 
-            # Remove existing directory if it exists
             if os.path.exists(helm_chart_path):
                 run_command(f"rm -rf {helm_chart_path}")
 
-            # Clone the repo with branch
             clone_command = f"git clone --depth 1 -b {branch_name} {repo_url} {helm_chart_path}" if branch_name else f"git clone --depth 1 {repo_url} {helm_chart_path}"
             run_command(clone_command)
 
-            # Get the latest commit hash
             git_commit_hash = run_command(f"git -C {helm_chart_path} rev-parse HEAD")
             print(f"Using Git commit hash: {git_commit_hash}")
 
@@ -241,7 +238,6 @@ def deploy_kubescape(
             default_chart_path = os.path.join(helm_chart_path, "kubescape-operator")
             alternative_chart_path = os.path.join(helm_chart_path, "charts", "kubescape-operator")
 
-            # Check which path exists
             if os.path.exists(default_chart_path):
                 chart_location = default_chart_path
             elif os.path.exists(alternative_chart_path):
@@ -249,18 +245,18 @@ def deploy_kubescape(
             else:
                 print(f"Error: Could not find the kubescape-operator chart in {helm_chart_path}")
                 exit(1)
-                
+
         else:
             print("Adding Kubescape Helm repository...")
             run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
             run_command('helm repo update')
             chart_location = "kubescape/kubescape-operator"
-        
+
         # Run 'helm dependency build' only if using a Git branch
         if helm_git_branch:
             print(f"Running 'helm dependency build' for {chart_location} (Git branch detected)...")
             run_command(f"helm dependency build {chart_location}")
-            
+
         print("Deploying Kubescape Operator...")
         cluster_context = subprocess.run(['kubectl', 'config', 'current-context'], check=True, capture_output=True, text=True).stdout.strip()
 
@@ -297,7 +293,6 @@ def deploy_kubescape(
                 ' --set imagePullSecret.server=quay.io ' 
                 ' --set imagePullSecret.username=armosec+armosec_ro ' 
                 ' --set imagePullSecrets=armosec-readonly '
-                ' --set nodeAgent.resources.limits.memory=1000Mi'
             )
 
             if private_node_agent:
@@ -352,9 +347,9 @@ def get_node_agent_tag_from_git():
         exit(1)
         return None
     
-def calculate_resources(node_size, node_count):
+def calculate_resources(node_size, node_count, enable_kdr=False):
     """Calculates resource requests and limits based on node size, count, and cluster resources."""
-    
+
     node_size = node_size or DEFAULT_NODE_SIZE
     node_count = node_count or DEFAULT_NODE_COUNT
 
@@ -365,11 +360,16 @@ def calculate_resources(node_size, node_count):
     vcpu_per_node = NODE_SIZES[node_size]["vcpu"]
     memory_per_node_gb = NODE_SIZES[node_size]["memory_gb"]
 
-    # Cluster-wide capacity
+    # **Step 1: Apply 50% Increase First If `enable_kdr` is True**
+    if enable_kdr:
+        vcpu_per_node = int(vcpu_per_node * 1.5)
+        memory_per_node_gb = int(memory_per_node_gb * 1.5)
+
+    # **Step 2: Compute Resource Allocations Normally**
     total_vcpu = vcpu_per_node * node_count
     total_memory_gb = memory_per_node_gb * node_count
 
-    print(f"Cluster Resources - Nodes: {node_count}, Total vCPU: {total_vcpu}, Total Memory: {total_memory_gb}GB")
+    print(f"\nCluster Resources - Nodes: {node_count}, Total vCPU: {total_vcpu}, Total Memory: {total_memory_gb}GB")
 
     # Get the total number of resources in the cluster
     total_resources = int(subprocess.run(
@@ -377,7 +377,7 @@ def calculate_resources(node_size, node_count):
         check=True, capture_output=True, text=True
     ).stdout.strip().count("\n"))
 
-    # **Node-agent calculations**
+    # **Now Calculate Requests and Limits Based on (Possibly Increased) vCPU & Memory**
     node_agent_cpu_request = int(0.025 * vcpu_per_node * 1000)
     node_agent_cpu_limit = int(0.10 * vcpu_per_node * 1000)
     node_agent_memory_request = int(0.025 * memory_per_node_gb * 1024)
@@ -422,6 +422,18 @@ def calculate_resources(node_size, node_count):
             }
         }
     }
+
+    # **Print Calculated Resource Allocations**
+    print("\nComputed Resource Allocations:")
+    print(f"Node Agent Requests: CPU: {config['nodeAgent']['resources']['requests']['cpu']}, "
+          f"Memory: {config['nodeAgent']['resources']['requests']['memory']}")
+    print(f"Node Agent Limits: CPU: {config['nodeAgent']['resources']['limits']['cpu']}, "
+          f"Memory: {config['nodeAgent']['resources']['limits']['memory']}")
+
+    print(f"Storage Requests: Memory: {config['storage']['resources']['requests']['memory']}")
+    print(f"Storage Limits: Memory: {config['storage']['resources']['limits']['memory']}")
+
+    print(f"KubeVuln Limits: Memory: {config['kubevuln']['resources']['limits']['memory']}")
 
     return config
     
