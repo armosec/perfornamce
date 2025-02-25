@@ -210,6 +210,8 @@ def deploy_kubescape(
     helm_git_branch: str = None  
 ):
     try:
+        git_commit_hash = None  # Initialize git commit hash variable
+        
         if helm_git_branch:
             # If the user provides only a branch name, default to Kubescape's helm-charts repo
             if not helm_git_branch.startswith("http"):
@@ -229,8 +231,11 @@ def deploy_kubescape(
 
             # Clone the repo with branch
             clone_command = f"git clone --depth 1 -b {branch_name} {repo_url} {helm_chart_path}" if branch_name else f"git clone --depth 1 {repo_url} {helm_chart_path}"
-
             run_command(clone_command)
+
+            # Get the latest commit hash
+            git_commit_hash = run_command(f"git -C {helm_chart_path} rev-parse HEAD")
+            print(f"Using Git commit hash: {git_commit_hash}")
 
             # Detect the correct path
             default_chart_path = os.path.join(helm_chart_path, "kubescape-operator")
@@ -278,6 +283,9 @@ def deploy_kubescape(
 
         if node_agent_image_tag:
             helm_command += f' --set nodeAgent.image.tag={node_agent_image_tag} --set nodeAgent.image.repository=quay.io/kubescape/node-agent'
+
+        if git_commit_hash:
+            helm_command += f' --set gitCommitHash={git_commit_hash}'
 
         if enable_kdr:
             additional_params = (
