@@ -5,6 +5,8 @@ import requests
 import argparse
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+
 
         
 NODE_SIZES = {
@@ -15,7 +17,28 @@ NODE_SIZES = {
 }
 
 DEFAULT_NODE_SIZE = "s-4vcpu-16gb"
-DEFAULT_NODE_COUNT = 4        
+DEFAULT_NODE_COUNT = 4  
+
+def setup_logging(output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    log_file = os.path.join(output_dir, "config.log")
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()  # Keep console output too
+        ]
+    )
+    return logging.getLogger()
+
+logger = setup_logging(os.getenv('OUTPUT_DIR', 'config'))     
+        
+def log_and_print(message):
+    print(message)  # Console
+    logger.info(message)  # Log file
         
 def run_command(command, cwd=None):
     try:
@@ -217,9 +240,10 @@ def deploy_kubescape(
             if not helm_git_branch.startswith("http"):
                 repo_url = "https://github.com/kubescape/helm-charts.git"
                 branch_name = helm_git_branch
-                print(f"Using default repo {repo_url} with branch {branch_name}")
+                log_and_print(f"Using default repo {repo_url} with branch {branch_name}")
             else:
                 repo_url = helm_git_branch
+                log_and_print(f"Using custom Git repository: {repo_url}")
                 branch_name = None
 
             repo_name = repo_url.split('/')[-1].replace('.git', '')
@@ -232,7 +256,7 @@ def deploy_kubescape(
             run_command(clone_command)
 
             git_commit_hash = run_command(f"git -C {helm_chart_path} rev-parse HEAD")
-            print(f"Using Git commit hash: {git_commit_hash}")
+            log_and_print(f"Using Git commit hash: {git_commit_hash}")
 
             # Detect the correct path
             default_chart_path = os.path.join(helm_chart_path, "kubescape-operator")
@@ -305,6 +329,8 @@ def deploy_kubescape(
             helm_command += ' ' + additional_params
 
         run_command(helm_command)
+        log_and_print(helm_command)
+        
         time.sleep(30)  # Wait for the operator to deploy
         print("waiting for operator to deploy - 30 sec")
         print("Kubescape Operator deployed successfully.")
@@ -352,6 +378,7 @@ def calculate_resources(node_size, node_count, enable_kdr=False):
 
     node_size = node_size or DEFAULT_NODE_SIZE
     node_count = node_count or DEFAULT_NODE_COUNT
+    log_and_print(f"{node_count} nodes of size '{node_size}'")
 
     if node_size not in NODE_SIZES:
         print(f"Warning: Unknown NODE_SIZE '{node_size}'. Using default '{DEFAULT_NODE_SIZE}'.")
@@ -424,16 +451,16 @@ def calculate_resources(node_size, node_count, enable_kdr=False):
     }
 
     # **Print Calculated Resource Allocations**
-    print("\nComputed Resource Allocations:")
-    print(f"Node Agent Requests: CPU: {config['nodeAgent']['resources']['requests']['cpu']}, "
+    log_and_print("\nComputed Resource Allocations:")
+    log_and_print(f"Node Agent Requests: CPU: {config['nodeAgent']['resources']['requests']['cpu']}, "
           f"Memory: {config['nodeAgent']['resources']['requests']['memory']}")
-    print(f"Node Agent Limits: CPU: {config['nodeAgent']['resources']['limits']['cpu']}, "
+    log_and_print(f"Node Agent Limits: CPU: {config['nodeAgent']['resources']['limits']['cpu']}, "
           f"Memory: {config['nodeAgent']['resources']['limits']['memory']}")
 
-    print(f"Storage Requests: Memory: {config['storage']['resources']['requests']['memory']}")
-    print(f"Storage Limits: Memory: {config['storage']['resources']['limits']['memory']}")
+    log_and_print(f"Storage Requests: Memory: {config['storage']['resources']['requests']['memory']}")
+    log_and_print(f"Storage Limits: Memory: {config['storage']['resources']['limits']['memory']}")
 
-    print(f"KubeVuln Limits: Memory: {config['kubevuln']['resources']['limits']['memory']}")
+    log_and_print(f"KubeVuln Limits: Memory: {config['kubevuln']['resources']['limits']['memory']}")
 
     return config
     

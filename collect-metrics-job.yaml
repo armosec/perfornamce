@@ -78,9 +78,20 @@ data:
     python threshold_check.py 
     python check_logs.py
     
+    if [ -f "/workspace/config.log" ]; then
+        echo "Copying config.log to OUTPUT_DIR..."
+        cp /workspace/config.log "${OUTPUT_DIR}/config.log"
+    else
+        echo "WARNING: config.log not found in /workspace/!"
+    fi
+
+    # Debug: Verify config.log is in the correct directory
+    echo "Checking OUTPUT_DIR contents after copying config.log:"
+    ls -l "${OUTPUT_DIR}"
+
     # Change to Logs repo directory to commit and push
     cd /workspace/Logs
-    
+
     echo "Pushing results to Logs repository..."
     git add "performance-inCluster/${TIMESTAMP}_helm_${CLEAN_HELM_VERSION}"
     git commit -m "Add performance test results - Duration: ${DURATION_TIME}m, Helm: ${HELM_VERSION}"

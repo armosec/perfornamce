@@ -120,7 +120,7 @@ jobs:
           echo "PRIVATE_NODE_AGENT: ${{ github.event.inputs.PRIVATE_NODE_AGENT }}"
           echo "HELM_GIT_BRANCH: ${{ github.event.inputs.HELM_GIT_BRANCH }}"
 
-      - name: Run Performance Test & Deploy Kubescape
+      - name: Run Performance Test
         env:
           QUAYIO_REGISTRY_PASSWORD: ${{ secrets.QUAYIO_REGISTRY_PASSWORD }}
           QUAYIO_REGISTRY_USERNAME: ${{ secrets.QUAYIO_REGISTRY_USERNAME }}
