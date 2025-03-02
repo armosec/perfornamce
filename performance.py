@@ -744,41 +744,47 @@ def main():
         node_count = args.nodes
     
     # Deploy prometheus and microservices demo
-    # deploy_kube_prometheus_stack()
-    # deploy_pyroscope()
+    deploy_kube_prometheus_stack()
+    deploy_pyroscope()
     
-    # released_private_node_agent = get_node_agent_tag_from_git()
-    # # Step 3: Deploy Kubescape using Helm
-    # deploy_kubescape(
-    #     account=args.account,
-    #     accessKey=args.accessKey,
-    #     version=args.version,
-    #     enable_kdr=args.kdr,
-    #     additional_helm_command=args.additional_helm_command,
-    #     storage_image_tag=args.storage_version,
-    #     node_agent_image_tag=args.node_agent_version,
-    #     private_node_agent=args.private_node_agent,
-    #     released_private_node_agent=released_private_node_agent,
-    #     helm_git_branch=args.helm_git_branch
-    # ) 
+    released_private_node_agent = get_node_agent_tag_from_git()
+    # Step 3: Deploy Kubescape using Helm
+    deploy_kubescape(
+        account=args.account,
+        accessKey=args.accessKey,
+        version=args.version,
+        enable_kdr=args.kdr,
+        additional_helm_command=args.additional_helm_command,
+        storage_image_tag=args.storage_version,
+        node_agent_image_tag=args.node_agent_version,
+        private_node_agent=args.private_node_agent,
+        released_private_node_agent=released_private_node_agent,
+        helm_git_branch=args.helm_git_branch
+    ) 
     
-    # time.sleep(40)  # Wait for the operator to deploy
-    # namespaces = create_parallel_namespaces(node_count)
-    # apply_microservices_demo(namespaces)
+    time.sleep(40)  # Wait for the operator to deploy
+    namespaces = create_parallel_namespaces(node_count)
+    apply_microservices_demo(namespaces)
     
     # Step 4: Check if the cluster is ready by polling the node readiness
-    # check_cluster_ready()
+    check_cluster_ready()
     
     # Step 5: Update Kubescape Helm chart with optimized resources
-    # update_kubescape_helm(node_size=args.node_size, node_count=node_count)
-    # print("Kubescape Helm chart updated with optimized resources.")
-    # time.sleep(30)  # Wait for the operator
+    update_kubescape_helm(node_size=args.node_size, node_count=node_count)
+    print("Kubescape Helm chart updated with optimized resources.")
+    time.sleep(30)  # Wait for the operator
     print("Verifying nodeAgent Pyroscope environment variables...")
-    check_and_fix_node_agent_env()
+    
+    if check_and_fix_node_agent_env():
+        time.sleep(30)
+        print("NodeAgent Pyroscope environment variables fixed successfully.")
+    else:
+        print("NodeAgent Pyroscope environment variables already set.")
+    
 
     # Step 6: Check if any pods are in CrashLoopBackOff state
-    # print("Checking for pods in CrashLoopBackOff state...")
-    # check_crashloop_pods(namespace="kubescape") 
+    print("Checking for pods in CrashLoopBackOff state...")
+    check_crashloop_pods(namespace="kubescape") 
 
 if __name__ == "__main__":
     main()
