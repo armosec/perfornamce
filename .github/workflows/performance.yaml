@@ -28,10 +28,10 @@ on:
         type: number
         default: 10
         required: true
-      KUBERNETES_VERSION:
-        description: 'Kubernetes version to use'
-        type: string
-        required: false
+      # KUBERNETES_VERSION:
+      #   description: 'Kubernetes version to use'
+      #   type: string
+      #   required: false
       # ACCOUNT_ID:
       #   description: 'Your account ID'
       #   type: string
@@ -113,7 +113,7 @@ jobs:
           echo "NODE_SIZE: ${{ github.event.inputs.NODE_SIZE }}"
           echo "NODE_COUNT: ${{ github.event.inputs.NODE_COUNT }}"
           echo "DURATION_TIME: ${{ github.event.inputs.DURATION_TIME }}"
-          echo "KUBERNETES_VERSION: ${{ github.event.inputs.KUBERNETES_VERSION }}"
+          # echo "KUBERNETES_VERSION: ${{ github.event.inputs.KUBERNETES_VERSION }}"
           echo "STORAGE_VERSION: ${{ github.event.inputs.STORAGE_VERSION }}"
           echo "NODE_AGENT_VERSION: ${{ github.event.inputs.NODE_AGENT_VERSION }}"
           echo "ENABLE_KDR: ${{ github.event.inputs.ENABLE_KDR }}"
@@ -198,5 +198,6 @@ jobs:
             exit 1
           fi
 
+          # Copy the config.log from current directory to pod
           echo "Copying config.log to $POD_NAME:/workspace/config.log"
-          kubectl cp logs/config.log default/$POD_NAME:/workspace/config.log
+          kubectl cp config.log default/$POD_NAME:/workspace/config.log

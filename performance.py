@@ -1,6 +1,7 @@
 import os
 import time
 import yaml
+import json
 import requests
 import argparse
 import subprocess
@@ -8,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 
 
-        
 NODE_SIZES = {
     "s-2vcpu-2gb": {"vcpu": 2, "memory_gb": 2},
     "s-4vcpu-8gb": {"vcpu": 4, "memory_gb": 8},
@@ -19,9 +19,12 @@ NODE_SIZES = {
 DEFAULT_NODE_SIZE = "s-4vcpu-16gb"
 DEFAULT_NODE_COUNT = 4  
 
-def setup_logging(output_dir):
-    os.makedirs(output_dir, exist_ok=True)
-    log_file = os.path.join(output_dir, "config.log")
+def setup_logging():
+    # Get the directory where the script is running
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Create log file in the same directory
+    log_file = os.path.join(script_dir, "config.log")
     
     # Configure logging
     logging.basicConfig(
@@ -34,7 +37,7 @@ def setup_logging(output_dir):
     )
     return logging.getLogger()
 
-logger = setup_logging(os.getenv('OUTPUT_DIR', '/tmp/workspace'))    
+logger = setup_logging()
         
 def log_and_print(message):
     print(message)  # Console
@@ -44,6 +47,7 @@ def run_command(command, cwd=None):
     try:
         result = subprocess.run(command, check=True, capture_output=True, text=True, shell=True, cwd=cwd)
         print(result.stdout)
+        return result.stdout.strip()  # Return the output and strip whitespace
     except subprocess.CalledProcessError as e:
         print(f"Command failed with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
@@ -373,6 +377,85 @@ def get_node_agent_tag_from_git():
         exit(1)
         return None
     
+def check_and_fix_node_agent_env():
+    """
+    Checks if the nodeAgent DaemonSet has the required Pyroscope environment variables.
+    If not, it adds them using a kubectl patch command.
+    """
+    # Step 1: Get the nodeAgent DaemonSet
+    try:
+        print("Checking nodeAgent DaemonSet for Pyroscope environment variables...")
+        result = subprocess.run(
+            ['kubectl', 'get', 'daemonset', 'node-agent', '-n', 'kubescape', '-o', 'json'],
+            check=True, capture_output=True, text=True
+        )
+        
+        ds_json = json.loads(result.stdout)
+        
+        # Step 2: Check if the environment variables exist
+        env_vars = ds_json.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [{}])[0].get('env', [])
+        
+        has_pyroscope_server = False
+        for env in env_vars:
+            if env.get('name') == 'PYROSCOPE_SERVER_SVC':
+                has_pyroscope_server = True
+                break
+        
+        # Step 3: If environment variables don't exist, patch the DaemonSet
+        if not has_pyroscope_server:
+            print("Pyroscope environment variables not found in nodeAgent. Adding them...")
+            
+            # Create the patch JSON
+            patch = {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": "node-agent",
+                                    "env": [
+                                        {
+                                            "name": "PYROSCOPE_SERVER_SVC",
+                                            "value": "http://pyroscope-distributor.monitoring.svc.cluster.local.:4040"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+            
+            # Convert patch to JSON string
+            patch_json = json.dumps(patch)
+            
+            # Apply the patch
+            patch_cmd = [
+                'kubectl', 'patch', 'daemonset', 'node-agent', 
+                '-n', 'kubescape', '--type', 'strategic', '-p', patch_json
+            ]
+            
+            subprocess.run(patch_cmd, check=True)
+            print("Successfully patched nodeAgent DaemonSet with Pyroscope environment variables.")
+            
+            # Restart the DaemonSet pods to apply changes
+            print("Restarting nodeAgent pods to apply changes...")
+            subprocess.run([
+                'kubectl', 'rollout', 'restart', 'daemonset/node-agent', '-n', 'kubescape'
+            ], check=True)
+            
+            return True
+        else:
+            print("Pyroscope environment variables already set in nodeAgent DaemonSet.")
+            return False
+            
+    except subprocess.CalledProcessError as e:
+        print(f"Error checking nodeAgent DaemonSet: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return False
+    
 def calculate_resources(node_size, node_count, enable_kdr=False):
     """Calculates resource requests and limits based on node size, count, and cluster resources."""
 
@@ -661,41 +744,41 @@ def main():
         node_count = args.nodes
     
     # Deploy prometheus and microservices demo
-    deploy_kube_prometheus_stack()
-    deploy_pyroscope()
+    # deploy_kube_prometheus_stack()
+    # deploy_pyroscope()
     
-    released_private_node_agent = get_node_agent_tag_from_git()
-    # Step 3: Deploy Kubescape using Helm
-    deploy_kubescape(
-        account=args.account,
-        accessKey=args.accessKey,
-        version=args.version,
-        enable_kdr=args.kdr,
-        additional_helm_command=args.additional_helm_command,
-        storage_image_tag=args.storage_version,
-        node_agent_image_tag=args.node_agent_version,
-        private_node_agent=args.private_node_agent,
-        released_private_node_agent=released_private_node_agent,
-        helm_git_branch=args.helm_git_branch
-    ) 
+    # released_private_node_agent = get_node_agent_tag_from_git()
+    # # Step 3: Deploy Kubescape using Helm
+    # deploy_kubescape(
+    #     account=args.account,
+    #     accessKey=args.accessKey,
+    #     version=args.version,
+    #     enable_kdr=args.kdr,
+    #     additional_helm_command=args.additional_helm_command,
+    #     storage_image_tag=args.storage_version,
+    #     node_agent_image_tag=args.node_agent_version,
+    #     private_node_agent=args.private_node_agent,
+    #     released_private_node_agent=released_private_node_agent,
+    #     helm_git_branch=args.helm_git_branch
+    # ) 
     
-    time.sleep(40)  # Wait for the operator to deploy
-    namespaces = create_parallel_namespaces(node_count)
-    apply_microservices_demo(namespaces)
+    # time.sleep(40)  # Wait for the operator to deploy
+    # namespaces = create_parallel_namespaces(node_count)
+    # apply_microservices_demo(namespaces)
     
-
     # Step 4: Check if the cluster is ready by polling the node readiness
-    check_cluster_ready()
+    # check_cluster_ready()
     
     # Step 5: Update Kubescape Helm chart with optimized resources
-    optimized_resources = calculate_resources(node_size=args.node_size, node_count=node_count)
-    update_kubescape_helm(node_size=args.node_size, node_count=node_count)
-    print("Kubescape Helm chart updated with optimized resources.")
-    time.sleep(30)  # Wait for the operator
-    
+    # update_kubescape_helm(node_size=args.node_size, node_count=node_count)
+    # print("Kubescape Helm chart updated with optimized resources.")
+    # time.sleep(30)  # Wait for the operator
+    print("Verifying nodeAgent Pyroscope environment variables...")
+    check_and_fix_node_agent_env()
+
     # Step 6: Check if any pods are in CrashLoopBackOff state
-    print("Checking for pods in CrashLoopBackOff state...")
-    check_crashloop_pods(namespace="kubescape") 
+    # print("Checking for pods in CrashLoopBackOff state...")
+    # check_crashloop_pods(namespace="kubescape") 
 
 if __name__ == "__main__":
     main()
