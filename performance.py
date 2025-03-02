@@ -34,7 +34,7 @@ def setup_logging(output_dir):
     )
     return logging.getLogger()
 
-logger = setup_logging(os.getenv('OUTPUT_DIR', 'config'))     
+logger = setup_logging(os.getenv('OUTPUT_DIR', '/workspace'))     
         
 def log_and_print(message):
     print(message)  # Console
