@@ -78,11 +78,11 @@ data:
     python threshold_check.py 
     python check_logs.py
     
-    if [ -f "${OUTPUT_DIR}/config.log" ]; then
+    if [ -f "/tmp/workspace/config.log" ]; then
         echo "Copying config.log to OUTPUT_DIR..."
-        cp "${OUTPUT_DIR}/config.log" "${OUTPUT_DIR}/config.log"
+        cp "/tmp/workspace/config.log" "${OUTPUT_DIR}/config.log"
     else
-        echo "WARNING: config.log not found in ${OUTPUT_DIR}!"
+        echo "WARNING: config.log not found in /tmp/workspace!"
     fi
 
     # Debug: Verify config.log is in the correct directory
