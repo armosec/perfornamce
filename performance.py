@@ -567,7 +567,7 @@ def update_kubescape_helm(node_size, node_count):
     )
 
     if result.returncode == 0:  # ConfigMap exists
-        print("⚠️ ks-cloud-config ConfigMap found. Deleting it to avoid Helm upgrade failure...")
+        print("ks-cloud-config ConfigMap found. Deleting it to avoid Helm upgrade failure...")
         subprocess.run(['kubectl', 'delete', 'configmap', 'ks-cloud-config', '-n', 'kubescape'], check=True)
         print("ks-cloud-config ConfigMap deleted successfully.")
 

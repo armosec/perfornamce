@@ -194,18 +194,33 @@ jobs:
           POD_NAME=$(kubectl get pod -l job-name=metrics-test -n default -o jsonpath="{.items[0].metadata.name}")
 
           if [ -z "$POD_NAME" ]; then
-            echo "ERROR: No pod found for the metrics-test job!"
+            echo "ERROR: No pod found for the 'metrics-test' job!"
             exit 1
           fi
+
+          echo "Found pod: $POD_NAME"
 
           # Get the actual container name inside the pod
           CONTAINER_NAME=$(kubectl get pod $POD_NAME -n default -o jsonpath="{.spec.containers[0].name}")
 
-          echo "Using container: $CONTAINER_NAME"
+          if [ -z "$CONTAINER_NAME" ]; then
+            echo "ERROR: No container found in the pod!"
+            exit 1
+          fi
+
+          echo "Found container: $CONTAINER_NAME"
 
           # Ensure the /workspace directory exists inside the container
+          echo "Ensuring /workspace directory exists in the pod..."
           kubectl exec -n default $POD_NAME -c $CONTAINER_NAME -- mkdir -p /workspace
 
-          # Copy the config.log from current directory to the pod
-          echo "Copying config.log to $POD_NAME:/workspace/config.log"
+          # Copy config.log from GitHub Actions runner to the Kubernetes pod
+          echo "Copying config.log to $POD_NAME:/workspace/config.log..."
           kubectl cp config.log default/$POD_NAME:/workspace/config.log -c $CONTAINER_NAME
+
+          if [ $? -eq 0 ]; then
+            echo "Successfully copied config.log to $POD_NAME:/workspace/config.log"
+          else
+            echo "ERROR: Failed to copy config.log!"
+            exit 1
+          fi
