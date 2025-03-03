@@ -198,6 +198,14 @@ jobs:
             exit 1
           fi
 
-          # Copy the config.log from current directory to pod
+          # Get the actual container name inside the pod
+          CONTAINER_NAME=$(kubectl get pod $POD_NAME -n default -o jsonpath="{.spec.containers[0].name}")
+
+          echo "Using container: $CONTAINER_NAME"
+
+          # Ensure the /workspace directory exists inside the container
+          kubectl exec -n default $POD_NAME -c $CONTAINER_NAME -- mkdir -p /workspace
+
+          # Copy the config.log from current directory to the pod
           echo "Copying config.log to $POD_NAME:/workspace/config.log"
-          kubectl cp config.log default/$POD_NAME:/workspace/config.log
+          kubectl cp config.log default/$POD_NAME:/workspace/config.log -c $CONTAINER_NAME
