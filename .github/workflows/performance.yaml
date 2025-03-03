@@ -188,41 +188,55 @@ jobs:
           
           echo "Metrics collection job deployed with duration: ${{ github.event.inputs.DURATION_TIME }} minutes"
 
-      - name: Copy config.log to Kubernetes Pod
+      - name: Wait for Pod and Copy config.log to Kubernetes Pod
         run: |
           # Get the pod name for the metrics-test Job
-          POD_NAME=$(kubectl get pod -l job-name=metrics-test -n default -o jsonpath="{.items[0].metadata.name}" 2>/dev/null)
-
-          # Check if a pod was found
-          if [ -z "$POD_NAME" ]; then
-            echo "ERROR: No pod found for the 'metrics-test' Job!"
-            exit 1
-          fi
+          POD_NAME=""
+          while [ -z "$POD_NAME" ]; do
+            POD_NAME=$(kubectl get pod -l job-name=metrics-test -n default -o jsonpath="{.items[0].metadata.name}" 2>/dev/null)
+            if [ -z "$POD_NAME" ]; then
+              echo "Waiting for the 'metrics-test' pod to be created..."
+              sleep 5
+            fi
+          done
 
           echo "Found pod: $POD_NAME"
 
-          # Get the pod status
-          POD_STATUS=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.status.phase}")
+          # Wait for the pod to be in Running or Succeeded state (timeout after 5 minutes)
+          TIMEOUT=300
+          ELAPSED=0
+          while true; do
+            POD_STATUS=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.status.phase}")
 
-          echo "Pod Status: $POD_STATUS"
+            echo "Pod Status: $POD_STATUS"
 
-          # Check if the pod is running before copying the file
-          if [ "$POD_STATUS" != "Running" ]; then
-            echo "ERROR: Pod $POD_NAME is in '$POD_STATUS' state. Cannot copy files to a completed pod."
-            exit 1
-          fi
+            if [ "$POD_STATUS" == "Running" ] || [ "$POD_STATUS" == "Succeeded" ]; then
+              echo "Pod is ready for copying files."
+              break
+            fi
+
+            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+              echo "ERROR: Timeout! Pod did not reach 'Running' or 'Succeeded' state in time."
+              exit 1
+            fi
+
+            echo "Waiting 5 seconds for pod to be ready..."
+            sleep 5
+            ELAPSED=$((ELAPSED + 10))
+          done
 
           # Get the container name inside the pod
           CONTAINER_NAME=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.spec.containers[0].name}")
-
           echo "Using container: $CONTAINER_NAME"
 
-          # Ensure /workspace directory exists in the container
-          kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- mkdir -p /workspace
+          # Ensure /workspace directory exists in the container (if Running)
+          if [ "$POD_STATUS" == "Running" ]; then
+            kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- mkdir -p /workspace
+          fi
 
-          # Copy config.log to the running container
-          echo "Copying config.log to $POD_NAME:/workspace/config.log"
-          kubectl cp config.log default/"$POD_NAME":/workspace/config.log -c "$CONTAINER_NAME"
+          # Copy config.log from the pod to the local machine
+          echo "Copying config.log from $POD_NAME:/workspace/config.log"
+          kubectl cp default/"$POD_NAME":/workspace/config.log config.log -c "$CONTAINER_NAME"
 
           if [ $? -eq 0 ]; then
             echo "Successfully copied config.log"
