@@ -190,36 +190,42 @@ jobs:
 
       - name: Copy config.log to Kubernetes Pod
         run: |
-          # Get the running pod for the job
-          POD_NAME=$(kubectl get pod -l job-name=metrics-test -n default -o jsonpath="{.items[0].metadata.name}")
+          # Get the pod name for the metrics-test Job
+          POD_NAME=$(kubectl get pod -l job-name=metrics-test -n default -o jsonpath="{.items[0].metadata.name}" 2>/dev/null)
 
+          # Check if a pod was found
           if [ -z "$POD_NAME" ]; then
-            echo "ERROR: No pod found for the 'metrics-test' job!"
+            echo "ERROR: No pod found for the 'metrics-test' Job!"
             exit 1
           fi
 
           echo "Found pod: $POD_NAME"
 
-          # Get the actual container name inside the pod
-          CONTAINER_NAME=$(kubectl get pod $POD_NAME -n default -o jsonpath="{.spec.containers[0].name}")
+          # Get the pod status
+          POD_STATUS=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.status.phase}")
 
-          if [ -z "$CONTAINER_NAME" ]; then
-            echo "ERROR: No container found in the pod!"
+          echo "Pod Status: $POD_STATUS"
+
+          # Check if the pod is running before copying the file
+          if [ "$POD_STATUS" != "Running" ]; then
+            echo "ERROR: Pod $POD_NAME is in '$POD_STATUS' state. Cannot copy files to a completed pod."
             exit 1
           fi
 
-          echo "Found container: $CONTAINER_NAME"
+          # Get the container name inside the pod
+          CONTAINER_NAME=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.spec.containers[0].name}")
 
-          # Ensure the /workspace directory exists inside the container
-          echo "Ensuring /workspace directory exists in the pod..."
-          kubectl exec -n default $POD_NAME -c $CONTAINER_NAME -- mkdir -p /workspace
+          echo "Using container: $CONTAINER_NAME"
 
-          # Copy config.log from GitHub Actions runner to the Kubernetes pod
-          echo "Copying config.log to $POD_NAME:/workspace/config.log..."
-          kubectl cp config.log default/$POD_NAME:/workspace/config.log -c $CONTAINER_NAME
+          # Ensure /workspace directory exists in the container
+          kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- mkdir -p /workspace
+
+          # Copy config.log to the running container
+          echo "Copying config.log to $POD_NAME:/workspace/config.log"
+          kubectl cp config.log default/"$POD_NAME":/workspace/config.log -c "$CONTAINER_NAME"
 
           if [ $? -eq 0 ]; then
-            echo "Successfully copied config.log to $POD_NAME:/workspace/config.log"
+            echo "Successfully copied config.log"
           else
             echo "ERROR: Failed to copy config.log!"
             exit 1
