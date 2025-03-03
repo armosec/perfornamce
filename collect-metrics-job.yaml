@@ -80,9 +80,9 @@ data:
     
     # Make sure config.log is in OUTPUT_DIR 
     # (either from earlier copy or checking again if it appeared after tests)
-    if [ ! -f "${OUTPUT_DIR}/config.log" ] && [ -f "/workspace/config.log" ]; then
+    if [ ! -f "${OUTPUT_DIR}/config.log" ] && [ -f "/tmpWorkspace/config.log" ]; then
         echo "Copying config.log to OUTPUT_DIR..."
-        cp "/workspace/config.log" "${OUTPUT_DIR}/config.log"
+        cp "/tmpWorkspace/config.log" "${OUTPUT_DIR}/config.log"
     fi
 
     # Debug: Verify config.log is in the correct directory

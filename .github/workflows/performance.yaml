@@ -190,57 +190,72 @@ jobs:
 
       - name: Wait for Pod and Copy config.log to Kubernetes Pod
         run: |
-          # Get the pod name for the metrics-test Job
+          echo "Waiting for metrics-test pod to be created..."
           POD_NAME=""
-          while [ -z "$POD_NAME" ]; do
+          RETRY_COUNT=0
+          MAX_RETRIES=30
+          
+          while [ -z "$POD_NAME" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             POD_NAME=$(kubectl get pod -l job-name=metrics-test -n default -o jsonpath="{.items[0].metadata.name}" 2>/dev/null)
             if [ -z "$POD_NAME" ]; then
-              echo "Waiting for the 'metrics-test' pod to be created..."
+              echo "Attempt $RETRY_COUNT: Waiting for the 'metrics-test' pod to be created..."
               sleep 5
+              RETRY_COUNT=$((RETRY_COUNT + 1))
             fi
           done
-
+          
+          if [ -z "$POD_NAME" ]; then
+            echo "ERROR: Pod 'metrics-test' not found after max retries!"
+            exit 1
+          fi
+          
           echo "Found pod: $POD_NAME"
-
-          # Wait for the pod to be in Running or Succeeded state (timeout after 5 minutes)
+          
+          # Wait for the pod to be in Running state
+          echo "Waiting for pod to reach Running state..."
           TIMEOUT=300
           ELAPSED=0
           while true; do
             POD_STATUS=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.status.phase}")
-
+            
             echo "Pod Status: $POD_STATUS"
-
-            if [ "$POD_STATUS" == "Running" ] || [ "$POD_STATUS" == "Succeeded" ]; then
+            
+            if [ "$POD_STATUS" == "Running" ]; then
               echo "Pod is ready for copying files."
               break
             fi
-
+            
             if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
-              echo "ERROR: Timeout! Pod did not reach 'Running' or 'Succeeded' state in time."
+              echo "ERROR: Timeout! Pod did not reach 'Running' state in time."
+              kubectl describe pod "$POD_NAME" -n default
               exit 1
             fi
-
+            
             echo "Waiting 5 seconds for pod to be ready..."
             sleep 5
-            ELAPSED=$((ELAPSED + 10))
+            ELAPSED=$((ELAPSED + 5))
           done
-
-          # Get the container name inside the pod
+          
+          # Get the container name
           CONTAINER_NAME=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.spec.containers[0].name}")
           echo "Using container: $CONTAINER_NAME"
-
-          # Ensure /workspace directory exists in the container (if Running)
-          if [ "$POD_STATUS" == "Running" ]; then
-            kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- mkdir -p /workspace
-          fi
-
-          # Copy config.log from the pod to the local machine
-          echo "Copying config.log from $POD_NAME:/workspace/config.log"
-          kubectl cp default/"$POD_NAME":/workspace/config.log config.log -c "$CONTAINER_NAME"
-
+          
+          # Create the workspace directory in the pod
+          echo "Creating /workspace directory in the pod..."
+          kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- mkdir -p /workspace
+          
+          # Copy config.log to the pod
+          echo "Copying config.log to $POD_NAME:/workspace/config.log"
+          kubectl cp config.log default/$POD_NAME:/workspace/config.log -c $CONTAINER_NAME
+          
+          # Check if the copy was successful
           if [ $? -eq 0 ]; then
-            echo "Successfully copied config.log"
+            echo "Successfully copied config.log to pod"
+            
+            # Verify the file exists in the pod
+            kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- ls -la /tmpWorkspace/config.log
+            
+            echo "Config.log successfully copied to pod. It will be included in the Git repository."
           else
-            echo "ERROR: Failed to copy config.log!"
-            exit 1
+            echo "WARNING: Failed to copy config.log to pod! The job will continue but may not include config data."
           fi
