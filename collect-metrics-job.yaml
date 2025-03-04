@@ -79,7 +79,12 @@ data:
     python check_logs.py
     
     # Copy config.log to OUTPUT_DIR 
-    find ./ -name "config.log" -type f -exec cp {} "${OUTPUT_DIR}/config.log" \;
+    if [ -f "/workspace/config.log" ]; then
+      cp "/workspace/config.log" "${OUTPUT_DIR}/config.log"
+      echo "Copied config.log from workspace root to OUTPUT_DIR"
+    else
+      echo "WARNING: config.log not found in workspace root"
+    fi
 
     # Debug: Verify config.log is in the correct directory
     echo "Checking OUTPUT_DIR contents after copying config.log:"
