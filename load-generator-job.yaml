@@ -20,7 +20,7 @@ spec:
             echo "Running load-generator script..."
             python3 /tmp/load-generator.py
             echo "Waiting 1 hour before next run..."
-            sleep 3600
+            sleep 300 # 5 minutes
           done
         env:
         - name: FILE_WORKERS
