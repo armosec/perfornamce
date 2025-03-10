@@ -77,10 +77,12 @@ data:
     python get_pprof.py
     python threshold_check.py 
     python check_logs.py
-    
+    echo " Do ls to see the files in the directory"
+    ls -l /tmpWorkspace/config.log
+
     # Copy config.log to OUTPUT_DIR 
-    if [ -f "$HOME/tmpWorkspace/config.log" ]; then
-      cp "$HOME/tmpWorkspace/config.log" "${OUTPUT_DIR}/config.log"
+    if [ -f "/tmpWorkspace/config.log" ]; then
+      mv "/tmpWorkspace/config.log" "${OUTPUT_DIR}/config.log"
       echo "Copied config.log from tmpWorkspace root to OUTPUT_DIR"
     else
       echo "WARNING: config.log not found in tmpWorkspace root"
@@ -193,7 +195,7 @@ spec:
               name: perf-channel-webhook
               key: url
         - name: DURATION_TIME
-          value: "$(DURATION_TIME)"
+          value: "2"
         volumeMounts:
         - name: run-script
           mountPath: /scripts

@@ -58,7 +58,7 @@ data:
     mv kubectl /usr/local/bin/
 
     echo "Installing Python dependencies..."
-    pip install --no-cache-dir kubernetes requests pyyaml
+    pip install --no-cache-dir kubernetes  requests pyyaml
 
     echo "Cloning performance repository for scripts..."
     DECODED_TOKEN=$(echo "${GIT_TOKEN}" | base64 -d)
