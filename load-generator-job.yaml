@@ -51,12 +51,14 @@ data:
     echo "Starting load generator..."
     echo "Installing required packages..."
     apt-get update && apt-get install -y procps iproute2 dnsutils curl git
-    apt-get update && apt-get install -y git curl apt-transport-https ca-certificates
-    
+
     echo "Downloading and installing kubectl..."
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
     chmod +x kubectl
     mv kubectl /usr/local/bin/
+
+    echo "Installing Python dependencies..."
+    pip install --no-cache-dir kubernetes requests pyyaml
 
     echo "Cloning performance repository for scripts..."
     DECODED_TOKEN=$(echo "${GIT_TOKEN}" | base64 -d)
@@ -65,7 +67,7 @@ data:
 
     echo "Running load-generator script..."
     while true; do
-        python /workspace/load-generator.py
+        python3 /workspace/load-generator.py
         echo "Waiting 5 minutes before next run..."
         sleep 300
     done
