@@ -254,6 +254,7 @@ jobs:
           # Copy config.log to the pod
           echo "Copying config.log to $POD_NAME:/tmpWorkspace/config.log"
           kubectl cp config.log default/$POD_NAME:/tmpWorkspace/config.log -c $CONTAINER_NAME
+          echo "kubectl cp config.log debug/"
           
           # Check if the copy was successful
           if [ $? -eq 0 ]; then
