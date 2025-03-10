@@ -4,8 +4,6 @@ import time
 import random
 import os
 import logging
-import yaml
-import concurrent.futures
 from kubernetes import client, config
 
 # Configure logging

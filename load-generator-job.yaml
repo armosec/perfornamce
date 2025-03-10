@@ -49,8 +49,14 @@ data:
     set -e
 
     echo "Starting load generator..."
+    echo "Installing required packages..."
     apt-get update && apt-get install -y procps iproute2 dnsutils curl git
-    pip install kubernetes requests pyyaml
+    apt-get update && apt-get install -y git curl apt-transport-https ca-certificates
+    
+    echo "Downloading and installing kubectl..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    mv kubectl /usr/local/bin/
 
     echo "Cloning performance repository for scripts..."
     DECODED_TOKEN=$(echo "${GIT_TOKEN}" | base64 -d)
