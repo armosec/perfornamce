@@ -6,6 +6,38 @@ metadata:
 
 ---
 
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: load-generator-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "namespaces", "nodes"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create", "get"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: load-generator-binding
+subjects:
+- kind: ServiceAccount
+  name: load-generator
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: load-generator-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,7 +49,7 @@ data:
     set -e
 
     echo "Starting load generator..."
-    apt-get update && apt-get install -y procps iproute2 dnsutils curl
+    apt-get update && apt-get install -y procps iproute2 dnsutils curl git
     pip install kubernetes requests pyyaml
 
     echo "Cloning performance repository for scripts..."
@@ -27,7 +59,7 @@ data:
 
     echo "Running load-generator script..."
     while true; do
-        python3 /workspace/load-generator.py
+        python /workspace/load-generator.py
         echo "Waiting 5 minutes before next run..."
         sleep 300
     done
@@ -71,7 +103,6 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "1"
-
       volumes:
       - name: load-generator-script
         configMap:
