@@ -20,7 +20,9 @@ data:
     apt-get update && apt-get install -y procps iproute2 dnsutils curl
     pip install kubernetes requests pyyaml
 
-    echo "changing directory to /workspace"
+    echo "Cloning performance repository for scripts..."
+    DECODED_TOKEN=$(echo "${GIT_TOKEN}" | base64 -d)
+    git clone "https://${DECODED_TOKEN}@github.com/armosec/perfornamce.git" /workspace
     cd /workspace
 
     echo "Running load-generator script..."
