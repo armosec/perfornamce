@@ -1,3 +1,32 @@
+---
+# Service Account configurations
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: load-generator
+  namespace: default
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metrics-collector
+  namespace: default
+---
+# ClusterRoleBinding for load-generator
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: load-generator-admin
+subjects:
+  - kind: ServiceAccount
+    name: load-generator
+    namespace: default  
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin  
+  apiGroup: rbac.authorization.k8s.io
+---
+# ClusterRoleBinding for metrics-collector
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
