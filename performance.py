@@ -693,6 +693,27 @@ def check_crashloop_pods(namespace='default'):
         print(f"Failed to check pods in namespace '{namespace}': {e}")
         return False
     
+def check_component_versions():
+    """
+    Check and display the versions of all Kubescape components deployed in the cluster.
+    """
+    try:
+        # Run the exact command you provided
+        cmd = "kubectl get pods -n kubescape -o jsonpath='{range .items[*]}{.metadata.name}{\" -> \"}{.spec.containers[*].image}{\"\\n\"}{end}' | awk -F'/' '{print $NF}' | awk -F':' '{if ($2 ~ /^v/) print $1\": \"$2; else print $1\": v\"$2}' | sort -u"
+        
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        
+        # Print the result directly
+        log_and_print("\nKubescape Component Versions:")
+        if result.stdout:
+            log_and_print(result.stdout)
+        else:
+            print("No components found or all components are pending")
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Error checking component versions: {e}")
+        print(f"Error output:\n{e.stderr}")
+    
 def destroy_cluster():
     terraform_dir = os.path.join("terraform-test-clusters", "EKS")
 
@@ -785,6 +806,7 @@ def main():
     # Step 6: Check if any pods are in CrashLoopBackOff state
     print("Checking for pods in CrashLoopBackOff state...")
     check_crashloop_pods(namespace="kubescape") 
+    check_component_versions()
 
 if __name__ == "__main__":
     main()
