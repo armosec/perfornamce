@@ -61,6 +61,10 @@ on:
         description: 'Helm chart branch (e.g., main)'
         required: false
         type: string
+      ADDITIONAL_HELM_COMMAND:
+        description: 'Additional Helm command for deployment'
+        required: false
+        type: string
       
 
 jobs:
@@ -148,6 +152,10 @@ jobs:
 
           if [ ! -z "${{ github.event.inputs.HELM_GIT_BRANCH }}" ]; then
             CMD="$CMD -helm-git-branch ${{ github.event.inputs.HELM_GIT_BRANCH }}"
+          fi
+
+          if [ ! -z "${{ github.event.inputs.ADDITIONAL_HELM_COMMAND }}" ]; then
+            CMD="$CMD -additional-helm-command \"${{ github.event.inputs.ADDITIONAL_HELM_COMMAND }}\""
           fi
 
           echo "Running command: $CMD"
