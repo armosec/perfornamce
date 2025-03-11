@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 from typing import Optional, Dict, List
 import json
+import subprocess
 
 # Configure logging
 logging.basicConfig(
@@ -10,6 +11,34 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def load_thresholds():
+    """Fetch the latest thresholds from the Kubernetes ConfigMap and apply a 15% increase."""
+    try:
+        # Fetch ConfigMap data from the default namespace
+        result = subprocess.run(
+            ["kubectl", "get", "configmap", "pod-thresholds", "-n", "default", "-o", "jsonpath={.data.pod_thresholds\\.json}"],
+            capture_output=True, text=True, check=True
+        )
+
+        raw_json = result.stdout
+        pod_thresholds = json.loads(raw_json)
+
+        # Apply 15% increase
+        updated_thresholds = {}
+        for pod, metrics in pod_thresholds.items():
+            updated_thresholds[pod] = {
+                "Memory": round(metrics["Memory"] * 1.15, 2),
+                "CPU": round(metrics["CPU"] * 1.15, 2)
+            }
+
+        logger.info(f"Loaded updated pod thresholds: {updated_thresholds}")
+        return updated_thresholds
+
+    except Exception as e:
+        logger.error(f"Failed to load thresholds from ConfigMap: {e}")
+        return None
+
 
 class ThresholdChecker:
     def __init__(
@@ -140,16 +169,6 @@ class ThresholdChecker:
                 with open(report_path, "w") as f:
                     json.dump(report, f, indent=2)
                     
-                # Print a summary by pod
-                logger.info("\nViolations Summary by Pod:")
-                for pod, counts in report["summary"]["violations_by_pod"].items():
-                    if counts["Memory"] > 0 or counts["CPU"] > 0:
-                        logger.info(
-                            f"\nPod: {pod}"
-                            f"\n- Memory Violations: {counts['Memory']}"
-                            f"\n- CPU Violations: {counts['CPU']}"
-                        )
-                
                 logger.info(f"\nDetailed report saved to: {report_path}")
                 
             except Exception as e:
@@ -173,24 +192,20 @@ class ThresholdChecker:
         else:
             logger.info("No threshold violations detected.")
 
+
 if __name__ == "__main__":
-    
     output_dir = os.getenv('OUTPUT_DIR', 'output')
     logger.info(f"Using output directory: {output_dir}")
     
-    pod_thresholds = {
-        "kubescape": {"Memory": 400, "CPU": 0.2},
-        "kubevuln": {"Memory": 500, "CPU": 0.3},
-        "node-agent": {"Memory": 300, "CPU": 0.1},
-        "operator": {"Memory": 200, "CPU": 0.05},
-        "otel-collector": {"Memory": 600, "CPU": 0.4},
-        "storage": {"Memory": 100, "CPU": 0.05},
-        "synchronizer": {"Memory": 150, "CPU": 0.1}
-    }
+    # Dynamically load thresholds
+    pod_thresholds = load_thresholds()
     
-    checker = ThresholdChecker(
-        output_dir=output_dir,
-        duration_threshold=10,           # 10 seconds
-        pod_thresholds=pod_thresholds
-    )
-    checker.run()
+    if pod_thresholds:
+        checker = ThresholdChecker(
+            output_dir=output_dir,
+            duration_threshold=10,           # 10 seconds
+            pod_thresholds=pod_thresholds
+        )
+        checker.run()
+    else:
+        logger.error("Failed to retrieve updated thresholds. Exiting.")

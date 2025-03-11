@@ -533,6 +533,13 @@ def calculate_resources(node_size, node_count, enable_kdr=False):
         }
     }
 
+    # Save calculated thresholds
+    with open("/tmp/pod_thresholds.json", "w") as f:
+        json.dump(config, f)
+        
+    # Apply them as a Kubernetes ConfigMap
+    run_command("kubectl create configmap pod-thresholds --from-file=/tmp/pod_thresholds.json -n default --dry-run=client -o yaml | kubectl apply -f -")
+    
     # **Print Calculated Resource Allocations**
     log_and_print("\nComputed Resource Allocations:")
     log_and_print(f"Node Agent Requests: CPU: {config['nodeAgent']['resources']['requests']['cpu']}, "
