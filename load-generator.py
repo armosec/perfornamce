@@ -39,14 +39,14 @@ except:
 v1 = client.CoreV1Api()
 apps_v1 = client.AppsV1Api()
 
-# Delete the last 2 created namespaces
-def delete_last_two_namespaces():
+# Delete the last 4 created namespaces
+def delete_last_four_namespaces():
     try:
         namespaces = v1.list_namespace().items
         namespace_names = [ns.metadata.name for ns in namespaces if ns.metadata.name.startswith("namespace-")]
         namespace_names.sort(reverse=True)  # Sort by name (assuming name ordering reflects creation order)
         
-        namespaces_to_delete = namespace_names[:2]  # Select the last two namespaces
+        namespaces_to_delete = namespace_names[:4]  # Select the last four namespaces
         
         for ns in namespaces_to_delete:
             logger.info(f"Deleting namespace: {ns}")
@@ -104,27 +104,20 @@ def dns_operations_worker():
             subprocess.run(["kubectl", "exec", "-n", NAMESPACE, pod, "--", "sh", "-c", "nslookup google.com"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(10)
 
-# Deploy images in a round-robin manner across nodes
-def deploy_vulnerable_images_balanced():
+def deploy_vulnerable_images_as_daemonsets():
     try:
-        nodes = get_all_nodes()
-        node_count = len(nodes)
-        if node_count == 0:
-            logger.error("No available nodes for deployment.")
-            return
+        for image in VULNERABLE_IMAGES:
+            daemonset_name = generate_deployment_name(image)
+            logger.info(f"Deploying {image} as DaemonSet {daemonset_name} in namespace {NAMESPACE}")
 
-        for index, image in enumerate(VULNERABLE_IMAGES):
-            node = nodes[index % node_count]  # Round-robin distribution
-            deployment_name = generate_deployment_name(image)
-            logger.info(f"Deploying {image} as {deployment_name} in namespace {NAMESPACE} on node {node}")
-
-            deployment = client.V1Deployment(
-                metadata=client.V1ObjectMeta(name=deployment_name),
-                spec=client.V1DeploymentSpec(
-                    replicas=1,
-                    selector=client.V1LabelSelector(match_labels={"app": deployment_name}),
+            daemonset = client.V1DaemonSet(
+                metadata=client.V1ObjectMeta(name=daemonset_name),
+                spec=client.V1DaemonSetSpec(
+                    selector=client.V1LabelSelector(
+                        match_labels={"app": daemonset_name}
+                    ),
                     template=client.V1PodTemplateSpec(
-                        metadata=client.V1ObjectMeta(labels={"app": deployment_name}),
+                        metadata=client.V1ObjectMeta(labels={"app": daemonset_name}),
                         spec=client.V1PodSpec(
                             containers=[
                                 client.V1Container(
@@ -138,18 +131,28 @@ def deploy_vulnerable_images_balanced():
                 )
             )
 
-            apps_v1.create_namespaced_deployment(namespace=NAMESPACE, body=deployment)
-            logger.info(f"Deployed {deployment_name} on node {node}")
-            DEPLOYED_PODS.append(deployment_name)
+            apps_v1.create_namespaced_daemon_set(namespace=NAMESPACE, body=daemonset)
+            logger.info(f"Deployed DaemonSet {daemonset_name}")
+            
+            # Get all pods from this DaemonSet
+            time.sleep(10)  # Give some time for pods to be created
+            pods = v1.list_namespaced_pod(
+                namespace=NAMESPACE,
+                label_selector=f"app={daemonset_name}"
+            )
+            
+            for pod in pods.items:
+                DEPLOYED_PODS.append(pod.metadata.name)
+                logger.info(f"Added pod {pod.metadata.name} to tracking list")
 
     except Exception as e:
-        logger.error(f"Error deploying images: {e}")
+        logger.error(f"Error deploying DaemonSets: {e}")
 
 # Worker to deploy all images in a balanced way
 def deployment_worker():
-    delete_last_two_namespaces()  # Delete the last two namespaces before deployment
+    delete_last_four_namespaces()
     create_namespace()
-    deploy_vulnerable_images_balanced()
+    deploy_vulnerable_images_as_daemonsets()
     
     # Start workers in parallel
     for _ in range(FILE_WORKERS):

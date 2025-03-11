@@ -65,6 +65,9 @@ data:
     git clone "https://${DECODED_TOKEN}@github.com/armosec/perfornamce.git" /workspace
     cd /workspace
 
+    echo "start load generator"
+    echo "Waiting 5 minutes before starting..."
+    sleep 300
     echo "Running load-generator script..."
     while true; do
         python3 /workspace/load-generator.py
