@@ -332,17 +332,17 @@ def deploy_kubescape(
 
             helm_command += ' ' + additional_params
 
+        # If additional_helm_command exists, append it
+        if additional_helm_command:
+            log_and_print(f"Appending additional Helm parameters: {additional_helm_command}")
+            helm_command += f" {additional_helm_command}"  # Append additional_helm_command
+
+        log_and_print(f"Final Helm command: {helm_command}")
         run_command(helm_command)
-        log_and_print(helm_command)
         
         time.sleep(30)  # Wait for the operator to deploy
         print("waiting for operator to deploy - 30 sec")
         print("Kubescape Operator deployed successfully.")
-
-        if additional_helm_command:
-            print("Deploying additional Helm chart...", additional_helm_command)
-            run_command(additional_helm_command)
-            print("Additional Helm chart deployed successfully.")
 
     except subprocess.CalledProcessError as e:
         print(f"Failed to deploy Kubescape with exit code {e.returncode}")
