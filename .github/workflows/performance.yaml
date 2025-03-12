@@ -196,12 +196,12 @@ jobs:
           
           echo "Metrics collection job deployed with duration: ${{ github.event.inputs.DURATION_TIME }} minutes"
 
-      - name: Deploy the Load Generator Job
-        run: |
-          # Apply the load-generator-job.yaml
-          cat load-generator-job.yaml | kubectl apply -f -
+      # - name: Deploy the Load Generator Job
+      #   run: |
+      #     # Apply the load-generator-job.yaml
+      #     cat load-generator-job.yaml | kubectl apply -f -
       
-          echo "Load generator job deployed"
+      #     echo "Load generator job deployed"
 
       - name: Wait for Pod and Copy config.log to Kubernetes Pod
         run: |
