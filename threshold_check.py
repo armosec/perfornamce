@@ -15,24 +15,37 @@ logger = logging.getLogger(__name__)
 def load_thresholds():
     """Fetch the latest thresholds from the Kubernetes ConfigMap and apply a 15% increase."""
     try:
-        # Fetch ConfigMap data from the default namespace
+        # Fetch ConfigMap data from Kubernetes
         result = subprocess.run(
             ["kubectl", "get", "configmap", "pod-thresholds", "-n", "default", "-o", "jsonpath={.data.pod_thresholds\\.json}"],
             capture_output=True, text=True, check=True
         )
 
-        raw_json = result.stdout
+        raw_json = result.stdout.strip()
+
+        if not raw_json:
+            logger.error("ConfigMap `pod-thresholds` is empty or missing.")
+            return None
+
+        # Log the raw JSON for debugging
+        logger.info(f"Raw ConfigMap JSON: {raw_json}")
+
         pod_thresholds = json.loads(raw_json)
 
-        # Apply 15% increase
-        updated_thresholds = {}
-        for pod, metrics in pod_thresholds.items():
-            updated_thresholds[pod] = {
+        if not isinstance(pod_thresholds, dict):
+            logger.error(f"Unexpected JSON format: {pod_thresholds}")
+            return None
+
+        # Apply 15% increase to each value
+        updated_thresholds = {
+            pod: {
                 "Memory": round(metrics["Memory"] * 1.15, 2),
                 "CPU": round(metrics["CPU"] * 1.15, 2)
             }
+            for pod, metrics in pod_thresholds.items()
+        }
 
-        logger.info(f"Loaded updated pod thresholds: {updated_thresholds}")
+        logger.info(f"Updated pod thresholds: {updated_thresholds}")
         return updated_thresholds
 
     except Exception as e:

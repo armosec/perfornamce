@@ -456,7 +456,7 @@ def check_and_fix_node_agent_env():
         print(f"Unexpected error: {str(e)}")
         return False
     
-def calculate_resources(node_size, node_count, enable_kdr=False):
+def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detection=True, node_sbom_generation=False, direct_io_storage=False):
     """Calculates resource requests and limits based on node size, count, and cluster resources."""
 
     node_size = node_size or DEFAULT_NODE_SIZE
@@ -487,70 +487,65 @@ def calculate_resources(node_size, node_count, enable_kdr=False):
         check=True, capture_output=True, text=True
     ).stdout.strip().count("\n"))
 
-    # **Now Calculate Requests and Limits Based on (Possibly Increased) vCPU & Memory**
-    node_agent_cpu_request = int(0.025 * vcpu_per_node * 1000)
-    node_agent_cpu_limit = int(0.10 * vcpu_per_node * 1000)
-    node_agent_memory_request = int(0.025 * memory_per_node_gb * 1024)
-    node_agent_memory_limit = int(0.10 * memory_per_node_gb * 1024)
+    # **Node-Agent Calculation (Matching Guidelines)**
+    cpu_adjustment = 0.75 if not runtime_detection else 1.0  # Reduce by 25% if runtimeDetection is off
+    memory_adjustment = 1.0 + (0.2 if node_sbom_generation else 0)  # Add 200MB if nodeSbomGeneration is on
 
-    # **Storage component calculations**
-    storage_memory_request = int(0.2 * total_resources)
-    storage_memory_limit = int(0.8 * total_resources)
+    node_agent_cpu_request = round(0.025 * vcpu_per_node * cpu_adjustment, 3)
+    node_agent_cpu_limit = round(0.10 * vcpu_per_node * cpu_adjustment, 3)
+    node_agent_memory_request = round(0.025 * memory_per_node_gb * 1024 * memory_adjustment, 2)
+    node_agent_memory_limit = round(0.10 * memory_per_node_gb * 1024 * memory_adjustment, 2)
 
-    # **KubeVuln calculations**
-    largest_image_size_mb = 1000
+    # **Storage Calculation**
+    storage_memory_request = round(0.2 * total_resources, 2)
+    storage_memory_limit = round(0.8 * total_resources, 2)
+
+    if direct_io_storage:
+        storage_memory_request /= 2
+        storage_memory_limit /= 2
+
+    storage_cpu_limit = round(storage_memory_limit / 8000, 3)  # Scale CPU based on memory
+
+    # **KubeVuln Calculation**
+    largest_image_size_mb = 1000  # Assume 1GB image size
     kubevuln_memory_limit = largest_image_size_mb + 400
+    kubevuln_cpu_limit = round(0.1 * total_vcpu, 3)
 
     config = {
-        "nodeAgent": {
-            "resources": {
-                "requests": {
-                    "cpu": f"{node_agent_cpu_request}m",
-                    "memory": f"{node_agent_memory_request}Mi"
-                },
-                "limits": {
-                    "cpu": f"{node_agent_cpu_limit}m",
-                    "memory": f"{node_agent_memory_limit}Mi"
-                }
-            }
+        "node-agent": {
+            "Memory": node_agent_memory_limit,
+            "CPU": node_agent_cpu_limit
         },
         "storage": {
-            "resources": {
-                "requests": {
-                    "memory": f"{storage_memory_request}Mi"
-                },
-                "limits": {
-                    "memory": f"{storage_memory_limit}Mi"
-                }
-            }
+            "Memory": storage_memory_limit,
+            "CPU": storage_cpu_limit
         },
         "kubevuln": {
-            "resources": {
-                "limits": {
-                    "memory": f"{kubevuln_memory_limit}Mi"
-                }
-            }
+            "Memory": kubevuln_memory_limit,
+            "CPU": kubevuln_cpu_limit
         }
     }
 
     # Save calculated thresholds
-    with open("/tmp/pod_thresholds.json", "w") as f:
-        json.dump(config, f)
-        
-    # Apply them as a Kubernetes ConfigMap
-    run_command("kubectl create configmap pod-thresholds --from-file=/tmp/pod_thresholds.json -n default --dry-run=client -o yaml | kubectl apply -f -")
-    
-    # **Print Calculated Resource Allocations**
-    log_and_print("\nComputed Resource Allocations:")
-    log_and_print(f"Node Agent Requests: CPU: {config['nodeAgent']['resources']['requests']['cpu']}, "
-          f"Memory: {config['nodeAgent']['resources']['requests']['memory']}")
-    log_and_print(f"Node Agent Limits: CPU: {config['nodeAgent']['resources']['limits']['cpu']}, "
-          f"Memory: {config['nodeAgent']['resources']['limits']['memory']}")
+    config_json_path = "/tmp/pod_thresholds.json"
+    with open(config_json_path, "w") as f:
+        json.dump(config, f, indent=2)
 
-    log_and_print(f"Storage Requests: Memory: {config['storage']['resources']['requests']['memory']}")
-    log_and_print(f"Storage Limits: Memory: {config['storage']['resources']['limits']['memory']}")
+    # **Apply them as a Kubernetes ConfigMap**
+    try:
+        subprocess.run(
+            f"kubectl create configmap pod-thresholds --from-file=pod_thresholds.json={config_json_path} "
+            f"-n default --dry-run=client -o yaml | kubectl apply -f -",
+            shell=True, check=True
+        )
+        print("ConfigMap `pod-thresholds` updated successfully!")
 
-    log_and_print(f"KubeVuln Limits: Memory: {config['kubevuln']['resources']['limits']['memory']}")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to create ConfigMap: {e}")
+
+    log_and_print("\n Computed Resource Allocations:")
+    for pod, resources in config.items():
+        log_and_print(f"{pod} -> CPU: {resources['CPU']} cores, Memory: {resources['Memory']} MiB")
 
     return config
     
