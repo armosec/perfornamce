@@ -39,22 +39,70 @@ except:
 v1 = client.CoreV1Api()
 apps_v1 = client.AppsV1Api()
 
-# Delete the last 4 created namespaces
-def delete_last_four_namespaces():
-    try:
-        namespaces = v1.list_namespace().items
-        namespace_names = [ns.metadata.name for ns in namespaces if ns.metadata.name.startswith("namespace-")]
-        namespace_names.sort(reverse=True)  # Sort by name (assuming name ordering reflects creation order)
-        
-        namespaces_to_delete = namespace_names[:4]  # Select the last four namespaces
-        
-        for ns in namespaces_to_delete:
-            logger.info(f"Deleting namespace: {ns}")
-            v1.delete_namespace(name=ns)
-            time.sleep(5)  # Small delay to allow deletion
-    except Exception as e:
-        logger.error(f"Error deleting namespaces: {e}")
+# Namespaces that should NOT be deleted
+EXCLUDED_NAMESPACES = {"kube-system", "monitoring", "kubescape", "default"}
 
+def get_all_nodes():
+    """Returns a list of all node names."""
+    try:
+        nodes = v1.list_node().items
+        return [node.metadata.name for node in nodes]
+    except Exception as e:
+        print(f"Error retrieving nodes: {e}")
+        return []
+
+def delete_namespaces_from_node(node_name, namespaces_to_delete):
+    """Deletes up to `namespaces_to_delete` namespaces from the given node."""
+    try:
+        # Get all pods on this node
+        pods = v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items
+
+        # Find non-excluded namespaces on this node
+        namespaces = list({pod.metadata.namespace for pod in pods if pod.metadata.namespace not in EXCLUDED_NAMESPACES})
+
+        if not namespaces:
+            print(f"No deletable namespaces found on {node_name}, skipping...")
+            return
+
+        # Determine how many namespaces to delete (either the given limit or total available)
+        delete_count = min(namespaces_to_delete, len(namespaces))
+
+        # Select random namespaces to delete
+        namespaces_to_delete = random.sample(namespaces, delete_count)
+
+        for namespace in namespaces_to_delete:
+            try:
+                print(f"Deleting namespace {namespace} from node {node_name}")
+                v1.delete_namespace(namespace)
+                print(f"Namespace {namespace} deleted successfully!")
+            except Exception as e:
+                print(f"Error deleting namespace {namespace}: {e}")
+
+    except Exception as e:
+        print(f"Error deleting namespaces from {node_name}: {e}")
+
+def delete_namespaces_across_nodes(namespaces_to_delete=2):
+    """Finds all nodes and deletes `namespaces_to_delete` per node in parallel."""
+    try:
+        node_names = get_all_nodes()
+
+        # Start threads for each node
+        threads = [
+            threading.Thread(target=delete_namespaces_from_node, args=(node, namespaces_to_delete))
+            for node in node_names
+        ]
+
+        # Start all threads
+        for thread in threads:
+            thread.start()
+
+        # Wait for all threads to finish
+        for thread in threads:
+            thread.join()
+
+    except Exception as e:
+        print(f"Error retrieving nodes: {e}")
+        
 # Create a dedicated namespace for the test
 def create_namespace():
     try:
@@ -150,7 +198,7 @@ def deploy_vulnerable_images_as_daemonsets():
 
 # Worker to deploy all images in a balanced way
 def deployment_worker():
-    delete_last_four_namespaces()
+    delete_namespaces_across_nodes(namespaces_to_delete=10)
     create_namespace()
     deploy_vulnerable_images_as_daemonsets()
     

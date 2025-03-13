@@ -66,13 +66,13 @@ data:
     cd /workspace
 
     echo "start load generator"
-    echo "Waiting 5 minutes before starting..."
-    sleep 300
+    echo "Waiting 10 minutes before starting..."
+    sleep 600
     echo "Running load-generator script..."
     while true; do
         python3 /workspace/load-generator.py
-        echo "Waiting 5 minutes before next run..."
-        sleep 300
+        echo "Waiting 10 minutes before next run..."
+        sleep 600
     done
 
 ---
