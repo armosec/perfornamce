@@ -12,7 +12,6 @@ logger = logging.getLogger('kubescape-load-gen')
 
 # Global list to track deployed pods
 DEPLOYED_PODS = []
-NAMESPACE = "new-load"
 
 # Number of worker instances
 FILE_WORKERS = int(os.getenv("FILE_WORKERS", "10"))
@@ -104,14 +103,31 @@ def delete_namespaces_across_nodes(namespaces_to_delete=2):
         print(f"Error retrieving nodes: {e}")
         
 # Create a dedicated namespace for the test
+def get_next_namespace_number(base_name="new-load"):
+    """Finds the next available namespace number."""
+    existing_namespaces = [ns.metadata.name for ns in v1.list_namespace().items]
+    
+    # Find the highest existing new-load-* number
+    next_number = 1
+    while f"{base_name}-{next_number}" in existing_namespaces:
+        next_number += 1
+
+    return f"{base_name}-{next_number}"
+
 def create_namespace():
+    """Creates a new namespace with an incremental number."""
+    unique_name = get_next_namespace_number()
+
     try:
-        ns_metadata = client.V1ObjectMeta(name=NAMESPACE)
+        ns_metadata = client.V1ObjectMeta(name=unique_name)
         ns_body = client.V1Namespace(metadata=ns_metadata)
         v1.create_namespace(ns_body)
-        logger.info(f"Namespace {NAMESPACE} created.")
+        print(f"Namespace {unique_name} created successfully!")
+        return unique_name  # Return the name if needed
     except Exception as e:
-        logger.warning(f"Namespace {NAMESPACE} might already exist: {e}")
+        print(f"Error creating namespace {unique_name}: {e}")
+        return None
+
 
 # Get all nodes
 def get_all_nodes():
@@ -129,34 +145,48 @@ def generate_deployment_name(image):
     return f"vuln-{image_name}-{random_suffix}"
 
 # Run file operations on deployed pods
-def file_operations_worker():
+def file_operations_worker(namespace):
     while True:
         for pod in DEPLOYED_PODS:
-            logger.info(f"Running file operations on {pod}")
-            subprocess.run(["kubectl", "exec", "-n", NAMESPACE, pod, "--", "sh", "-c", "touch /tmp/testfile && rm /tmp/testfile"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            logger.info(f"Running file operations on {pod} in namespace {namespace}")
+            subprocess.run(
+                ["kubectl", "exec", "-n", namespace, pod, "--", "sh", "-c", "touch /tmp/testfile && rm /tmp/testfile"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
         time.sleep(10)
 
 # Run process operations on deployed pods
-def process_operations_worker():
+def process_operations_worker(namespace):
     while True:
         for pod in DEPLOYED_PODS:
-            logger.info(f"Running process operations on {pod}")
-            subprocess.run(["kubectl", "exec", "-n", NAMESPACE, pod, "--", "sh", "-c", "ps aux"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            logger.info(f"Running process operations on {pod} in namespace {namespace}")
+            subprocess.run(
+                ["kubectl", "exec", "-n", namespace, pod, "--", "sh", "-c", "ps aux"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
         time.sleep(10)
 
 # Run DNS operations on deployed pods
-def dns_operations_worker():
+def dns_operations_worker(namespace):
     while True:
         for pod in DEPLOYED_PODS:
-            logger.info(f"Running DNS operations on {pod}")
-            subprocess.run(["kubectl", "exec", "-n", NAMESPACE, pod, "--", "sh", "-c", "nslookup google.com"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            logger.info(f"Running DNS operations on {pod} in namespace {namespace}")
+            subprocess.run(
+                ["kubectl", "exec", "-n", namespace, pod, "--", "sh", "-c", "nslookup google.com"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
         time.sleep(10)
 
-def deploy_vulnerable_images_as_daemonsets():
+def deploy_vulnerable_images_as_daemonsets(namespace):
+    """Deploys images in the dynamically set namespace."""
+    if not namespace:
+        logger.error("Namespace is not set! Exiting deployment.")
+        return
+    
     try:
         for image in VULNERABLE_IMAGES:
             daemonset_name = generate_deployment_name(image)
-            logger.info(f"Deploying {image} as DaemonSet {daemonset_name} in namespace {NAMESPACE}")
+            logger.info(f"Deploying {image} as DaemonSet {daemonset_name} in namespace {namespace}")
 
             daemonset = client.V1DaemonSet(
                 metadata=client.V1ObjectMeta(name=daemonset_name),
@@ -179,13 +209,13 @@ def deploy_vulnerable_images_as_daemonsets():
                 )
             )
 
-            apps_v1.create_namespaced_daemon_set(namespace=NAMESPACE, body=daemonset)
+            apps_v1.create_namespaced_daemon_set(namespace=namespace, body=daemonset)
             logger.info(f"Deployed DaemonSet {daemonset_name}")
             
             # Get all pods from this DaemonSet
             time.sleep(10)  # Give some time for pods to be created
             pods = v1.list_namespaced_pod(
-                namespace=NAMESPACE,
+                namespace=namespace,
                 label_selector=f"app={daemonset_name}"
             )
             
@@ -199,20 +229,28 @@ def deploy_vulnerable_images_as_daemonsets():
 # Worker to deploy all images in a balanced way
 def deployment_worker():
     delete_namespaces_across_nodes(namespaces_to_delete=10)
-    create_namespace()
-    deploy_vulnerable_images_as_daemonsets()
     
-    # Start workers in parallel
+    # Dynamically assign namespace
+    namespace = create_namespace()
+    if not namespace:
+        logger.error("Failed to create a namespace. Exiting...")
+        return
+
+    time.sleep(10)  # Ensure namespace is ready before deployment
+
+    deploy_vulnerable_images_as_daemonsets(namespace)  # Pass namespace as an argument
+
+    # Start workers in parallel with namespace argument
     for _ in range(FILE_WORKERS):
-        threading.Thread(target=file_operations_worker, daemon=True).start()
+        threading.Thread(target=file_operations_worker, args=(namespace,), daemon=True).start()
     for _ in range(PROCESS_WORKERS):
-        threading.Thread(target=process_operations_worker, daemon=True).start()
+        threading.Thread(target=process_operations_worker, args=(namespace,), daemon=True).start()
     for _ in range(DNS_WORKERS):
-        threading.Thread(target=dns_operations_worker, daemon=True).start()
+        threading.Thread(target=dns_operations_worker, args=(namespace,), daemon=True).start()
 
 # Start workers
 def main():
-    deployment_thread = threading.Thread(target=deployment_worker)
+    deployment_thread = threading.Thread(target=deployment_worker, daemon=True)
     deployment_thread.start()
     deployment_thread.join()
     logger.info("All deployments completed and operations executed. Script exiting.")
