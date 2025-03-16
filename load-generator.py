@@ -228,7 +228,7 @@ def deploy_vulnerable_images_as_daemonsets(namespace):
 
 # Worker to deploy all images in a balanced way
 def deployment_worker():
-    delete_namespaces_across_nodes(namespaces_to_delete=3)
+    delete_namespaces_across_nodes(namespaces_to_delete=2)
     
     # Dynamically assign namespace
     namespace = create_namespace()
