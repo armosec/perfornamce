@@ -97,7 +97,7 @@ def deploy_kube_prometheus_stack():
             f"helm upgrade --install kube-prometheus-stack "
             f"-f {values_file} "
             f"{chart_path} "
-            f"-n monitoring --create-namespace"
+            f"-n monitoring --create-namespace --timeout 10m0s"
         )
         
         # Run the command
