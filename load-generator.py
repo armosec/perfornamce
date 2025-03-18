@@ -39,7 +39,7 @@ v1 = client.CoreV1Api()
 apps_v1 = client.AppsV1Api()
 
 # Namespaces that should NOT be deleted
-EXCLUDED_NAMESPACES = {"kube-system", "monitoring", "kubescape", "default"}
+EXCLUDED_NAMESPACES = {"kube-system", "monitoring", "kubescape", "default", "namespace-1", "namespace-2", "namespace-3", "namespace-4", "namespace-5", "namespace-6", "namespace-7", "namespace-8", "namespace-9"," namespace-10"} 
 
 def get_all_nodes():
     """Returns a list of all node names."""
@@ -80,7 +80,7 @@ def delete_namespaces_from_node(node_name, namespaces_to_delete):
     except Exception as e:
         print(f"Error deleting namespaces from {node_name}: {e}")
 
-def delete_namespaces_across_nodes(namespaces_to_delete=2):
+def delete_namespaces_across_nodes(namespaces_to_delete=1):
     """Finds all nodes and deletes `namespaces_to_delete` per node in parallel."""
     try:
         node_names = get_all_nodes()
@@ -228,7 +228,7 @@ def deploy_vulnerable_images_as_daemonsets(namespace):
 
 # Worker to deploy all images in a balanced way
 def deployment_worker():
-    delete_namespaces_across_nodes(namespaces_to_delete=2)
+    delete_namespaces_across_nodes(namespaces_to_delete=1)
     
     # Dynamically assign namespace
     namespace = create_namespace()
