@@ -216,7 +216,7 @@ if __name__ == "__main__":
     if pod_thresholds:
         checker = ThresholdChecker(
             output_dir=output_dir,
-            duration_threshold=10,           # 10 seconds
+            duration_threshold=5,           # 5 seconds
             pod_thresholds=pod_thresholds
         )
         checker.run()
