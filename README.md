@@ -90,6 +90,27 @@ python performance.py -destroy
 
 > **Note:** When running `terraform destroy`, keep your terminal open, or the operation will be canceled.
 
+## Dynamic Resource Calculation for Kubescape Components
+
+The script includes a function that automatically calculates resource requests and limits (CPU and memory) for key Kubescape components like the node-agent, storage, and kubevuln, based on the selected node size, node count, and enabled features (like runtime detection or SBOM generation).
+[reference documents](https://docs.google.com/document/d/1zErU7eSoQ0Gs_TPQLQiDQAOfvh2zta_M0UAWvP-SYY0/edit?pli=1&tab=t.0#heading=h.n2kzaxkb88ox)
+
+#### How It Works:
+* CPU & Memory per node are taken from a predefined node size map.
+* If **KDR** is enabled, resources are increased by 50% to handle runtime overhead.
+* For the **Node Agent**:
+    * CPU: 2.5% request and 10% limit of each node's CPU (adjusted if KDR is off).
+    * Memory: 2.5% request and 10% limit of each node’s memory (plus 200 MiB if SBOM is enabled).
+
+* For **Storage**:
+    * Memory: Based on total number of Kubernetes resources (e.g., Deployments, Pods).
+    * CPU: Scaled proportionally from memory.
+
+* For Kubevuln:
+    * Memory: 1 GB (assumed image size) + 400 MiB buffer.
+    * CPU: 10% of total cluster vCPU.
+
+
 ## Additional Features
 
 
