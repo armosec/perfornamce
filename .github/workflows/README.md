@@ -39,20 +39,50 @@ The workflow is manually triggered using `workflow_dispatch` with user-defined i
 1. Deploys `collect-metrics-job.yaml` with a runtime-defined timestamp.
 2. Specifies metric collection duration from user input.
 
-### Set Up Metrics Collection:
+    #### Set Up Metrics Collection:
 
-Fetches Helm chart versions deployed in the cluster.
-Captures image versions of running containers.
-Stores collected data in /workspace/Logs/performance-inCluster/ with a timestamp.
+    Fetches Helm chart versions deployed in the cluster.
+    Captures image versions of running containers.
+    Stores collected data in /workspace/Logs/performance-inCluster/ with a timestamp.
 
-Execute the collect metrics job:
+    Execute the collect metrics job:
 
-`get_data_from_prometheus.py` - Fetches metrics CPU and memory.
+    `get_data_from_prometheus.py` - Fetches metrics CPU and memory.
 
-`get_pprof.py` - Collects profiling data of the node agent.
+    `get_pprof.py` - Collects profiling data of the node agent.
 
-`check_logs.py` - Verifies logs for anomalies (looking for error / fail / panic).
+    `check_logs.py` - Verifies logs for anomalies (looking for error / fail / panic).
 
+
+### 4. Deploy Load Generator Job
+
+This section includes a Kubernetes Job that deploys a load generator to simulate real-world usage and stress test your cluster with vulnerable applications and periodic operations.
+
+- **Python Script (`load-generator.py`)**:
+  - Creates a new namespace dynamically.
+  - Deploys multiple vulnerable images as DaemonSets across all nodes.
+  - Spawns parallel threads to simulate:
+    - File system operations
+    - Process execution
+    - DNS resolution
+- **Job Definition**: A Kubernetes Job that starts the load generator using a Python-based container.
+
+#### How It Works
+
+1. **Startup Delay**: The script waits 60 minutes after the container starts to delay the initial load.
+2. **Namespace Handling**:
+   - Deletes up to one non-critical namespace per node.
+   - Creates a new unique namespace (e.g., `new-load-1`, `new-load-2`, etc.).
+3. **Deployment of Vulnerable Applications**:
+   - Each vulnerable image is deployed as a DaemonSet.
+   - Ensures each node runs at least one vulnerable pod.
+4. **Simulated Operations** (in parallel threads):
+   - **File Workers**: Create and delete files periodically inside pods.
+   - **Process Workers**: Run `ps aux` to simulate process activity.
+   - **DNS Workers**: Perform DNS lookups (e.g., `nslookup google.com`) inside pods.
+5. **Repetition**: After each full run, it waits 60 minutes and repeats the load generation.
+
+## Outputs
 **1. Results to Logs Repository:** Commits and pushes logs to GitHub for later analysis to the  [performance-inCluste](https://github.com/armosec/Logs/tree/main/performance-inCluster) repo.
 
  **2. pprof profiles:** you can open via [speedscope](https://www.speedscope.app/)
