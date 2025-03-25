@@ -18,6 +18,15 @@ The workflow is manually triggered using `workflow_dispatch` with user-defined i
 | ENABLE_KDR | Enable KDR | boolean | false | ❌ |
 | PRIVATE_NODE_AGENT | Private node agent version | string | N/A | ❌ |
 | HELM_GIT_BRANCH | Helm chart branch (e.g., main) | string | N/A | ❌ |
+| ADDITIONAL_HELM_COMMAND | Additional Helm command-line arguments to customize the Kubescape deployment (e.g., extra --set flags) | string | N/A | ❌ |
+
+##
+#### Tip:
+You can use `ADDITIONAL_HELM_COMMAND` to inject extra flags into the Helm install/upgrade command (e.g., custom image repositories, new feature toggles, etc.).
+```
+ --set capabilities.httpDetection=enable, --set capabilities.runtimeDetection=enable
+```
+
 
 ## Jobs & Steps
 ### 1. Setup Cluster

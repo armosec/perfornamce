@@ -90,6 +90,7 @@ python performance.py -destroy
 
 > **Note:** When running `terraform destroy`, keep your terminal open, or the operation will be canceled.
 
+
 ## Dynamic Resource Calculation for Kubescape Components
 
 The script includes a function that automatically calculates resource requests and limits (CPU and memory) for key Kubescape components like the node-agent, storage, and kubevuln, based on the selected node size, node count, and enabled features (like runtime detection or SBOM generation).
