@@ -238,56 +238,68 @@ def deploy_kubescape(
 ):
     try:
         git_commit_hash = None  # Initialize git commit hash variable
+        chart_location = None   # Initialize chart location
         
         if helm_git_branch:
-            # If the user provides only a branch name, default to Kubescape's helm-charts repo
-            if not helm_git_branch.startswith("http"):
-                repo_url = "https://github.com/kubescape/helm-charts.git"
-                branch_name = helm_git_branch
-                log_and_print(f"Using default repo {repo_url} with branch {branch_name}")
-            else:
-                repo_url = helm_git_branch
-                log_and_print(f"Using custom Git repository: {repo_url}")
-                branch_name = None
+            # Since we always expect a branch name, use the default Kubescape repo
+            repo_url = "https://github.com/kubescape/helm-charts.git"
+            branch_name = helm_git_branch
+            log_and_print(f"Using default repo {repo_url} with branch {branch_name}")
 
             repo_name = repo_url.split('/')[-1].replace('.git', '')
             helm_chart_path = f"/tmp/{repo_name}"
 
+            # Clean up existing directory if it exists
             if os.path.exists(helm_chart_path):
+                log_and_print(f"Removing existing directory: {helm_chart_path}")
                 run_command(f"rm -rf {helm_chart_path}")
 
-            clone_command = f"git clone --depth 1 -b {branch_name} {repo_url} {helm_chart_path}" if branch_name else f"git clone --depth 1 {repo_url} {helm_chart_path}"
+            # Clone the repository without specifying a branch first
+            clone_command = f"git clone {repo_url} {helm_chart_path}"
+            log_and_print(f"Cloning repository with command: {clone_command}")
             run_command(clone_command)
-
-            git_commit_hash = run_command(f"git -C {helm_chart_path} rev-parse HEAD")
+            
+            # Then checkout to the specified branch if provided
+            if branch_name:
+                checkout_command = f"git -C {helm_chart_path} checkout {branch_name}"
+                log_and_print(f"Checking out branch: {checkout_command}")
+                run_command(checkout_command)
+            
+            # Get the git commit hash after checkout for tracking purposes
+            git_commit_hash = run_command(f"git -C {helm_chart_path} rev-parse HEAD").strip()
             log_and_print(f"Using Git commit hash: {git_commit_hash}")
 
-            # Detect the correct path
-            default_chart_path = os.path.join(helm_chart_path, "kubescape-operator")
-            alternative_chart_path = os.path.join(helm_chart_path, "charts", "kubescape-operator")
+            # Detect the correct chart path
+            possible_chart_paths = [
+                os.path.join(helm_chart_path, "kubescape-operator"),
+                os.path.join(helm_chart_path, "charts", "kubescape-operator")
+            ]
+            
+            for path in possible_chart_paths:
+                if os.path.exists(path):
+                    chart_location = path
+                    log_and_print(f"Found chart at: {chart_location}")
+                    break
+                    
+            if not chart_location:
+                error_msg = f"Error: Could not find the kubescape-operator chart in {helm_chart_path}"
+                log_and_print(error_msg)
+                raise Exception(error_msg)
 
-            if os.path.exists(default_chart_path):
-                chart_location = default_chart_path
-            elif os.path.exists(alternative_chart_path):
-                chart_location = alternative_chart_path
-            else:
-                print(f"Error: Could not find the kubescape-operator chart in {helm_chart_path}")
-                exit(1)
+            # Build dependencies for the chart
+            log_and_print(f"Running 'helm dependency build' for {chart_location}...")
+            run_command(f"helm dependency build {chart_location}")
 
         else:
-            print("Adding Kubescape Helm repository...")
+            log_and_print("Using Kubescape Helm repository...")
             run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
             run_command('helm repo update')
             chart_location = "kubescape/kubescape-operator"
 
-        # Run 'helm dependency build' only if using a Git branch
-        if helm_git_branch:
-            print(f"Running 'helm dependency build' for {chart_location} (Git branch detected)...")
-            run_command(f"helm dependency build {chart_location}")
-
         print("Deploying Kubescape Operator...")
         cluster_context = subprocess.run(['kubectl', 'config', 'current-context'], check=True, capture_output=True, text=True).stdout.strip()
 
+        # Build base helm command
         helm_command = (
             f'helm upgrade --install kubescape {chart_location} '
             f'-n kubescape --create-namespace '
@@ -300,7 +312,8 @@ def deploy_kubescape(
             f'--set nodeAgent.env[0].value=http://pyroscope-distributor.monitoring.svc.cluster.local.:4040'
         )
 
-        if version:
+        # Add optional parameters
+        if version and not helm_git_branch:  # Only use version if not using Git branch
             helm_command += f' --version {version}'
 
         if storage_image_tag:
@@ -309,9 +322,8 @@ def deploy_kubescape(
         if node_agent_image_tag:
             helm_command += f' --set nodeAgent.image.tag={node_agent_image_tag} --set nodeAgent.image.repository=quay.io/kubescape/node-agent'
 
-        if git_commit_hash:
-            helm_command += f' --set gitCommitHash={git_commit_hash}'
 
+        # Add KDR-specific parameters if enabled
         if enable_kdr:
             additional_params = (
                 ' --set alertCRD.installDefault=true ' 
@@ -324,31 +336,34 @@ def deploy_kubescape(
                 ' --set imagePullSecrets=armosec-readonly '
             )
 
+            # Handle private node agent configuration
             if private_node_agent:
                 additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
             elif released_private_node_agent:
                 additional_params += f' --set nodeAgent.image.tag={released_private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
             else:
-                print("ERROR: No private_node_agent provided and no released_private_node_agent found.")
+                error_msg = "ERROR: No private_node_agent provided and no released_private_node_agent found."
+                print(error_msg)
+                if enable_kdr:  # Only raise exception if KDR is enabled and we need these parameters
+                    raise Exception(error_msg)
 
             helm_command += ' ' + additional_params
 
-        # If additional_helm_command exists, append it
+        # Add any additional helm parameters
         if additional_helm_command:
             log_and_print(f"Appending additional Helm parameters: {additional_helm_command}")
-            helm_command += f" {additional_helm_command}"  # Append additional_helm_command
+            helm_command += f" {additional_helm_command}"
 
         log_and_print(f"Final Helm command: {helm_command}")
         run_command(helm_command)
         
+        print("Waiting for operator to deploy - 30 sec")
         time.sleep(30)  # Wait for the operator to deploy
-        print("waiting for operator to deploy - 30 sec")
         print("Kubescape Operator deployed successfully.")
-
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to deploy Kubescape with exit code {e.returncode}")
-        print(f"Error output:\n{e.stderr}")
-        exit(1)
+        
+    except Exception as e:
+        log_and_print(f"Error deploying Kubescape: {str(e)}")
+        raise
 
 def get_node_agent_tag_from_git():
     """
@@ -768,8 +783,8 @@ def main():
         node_count = args.nodes
     
     # Deploy prometheus and microservices demo
-    deploy_kube_prometheus_stack()
-    deploy_pyroscope()
+    # deploy_kube_prometheus_stack()
+    # deploy_pyroscope()
     
     released_private_node_agent = get_node_agent_tag_from_git()
     # Step 3: Deploy Kubescape using Helm
