@@ -565,8 +565,8 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
 
     return config
     
-def update_kubescape_helm(node_size, node_count):
-    """Updates the Kubescape deployment using Helm based on cluster specifications and fixes ks-cloud-config issues."""
+def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
+    """Updates the Kubescape deployment using Helm based on cluster specifications."""
     print("Updating Kubescape configuration...")
 
     # Step 1: Calculate optimal resources
@@ -576,13 +576,12 @@ def update_kubescape_helm(node_size, node_count):
     with open("kubescape-autoscale.yaml", "w") as file:
         yaml.dump(config, file, default_flow_style=False)
 
-    # Step 3: Fix ks-cloud-config issue (DELETE if exists)
+    # Step 3: Handle ks-cloud-config ConfigMap issue
     print("Checking for existing ks-cloud-config ConfigMap...")
 
     result = subprocess.run(
         ['kubectl', 'get', 'configmap', 'ks-cloud-config', '-n', 'kubescape'],
-        capture_output=True, text=True
-    )
+        capture_output=True, text=True)
 
     if result.returncode == 0:  # ConfigMap exists
         print("ks-cloud-config ConfigMap found. Deleting it to avoid Helm upgrade failure...")
@@ -592,29 +591,80 @@ def update_kubescape_helm(node_size, node_count):
     else:
         print("No ks-cloud-config ConfigMap found. Proceeding with Helm upgrade...")
 
-    # Step 4: Ensure Helm Repo Exists
-    print("Ensuring Kubescape Helm repository is added...")
-    
-    helm_repo_check = subprocess.run(
-        "helm repo list | grep kubescape",
-        shell=True,
-        capture_output=True,
-        text=True
-    )
+    # Step 4: Determine chart location based on git branch
+    if helm_git_branch:
+        # Since we always expect a branch name, use the default Kubescape repo
+        repo_url = "https://github.com/kubescape/helm-charts.git"
+        branch_name = helm_git_branch
+        log_and_print(f"Using default repo {repo_url} with branch {branch_name}")
 
-    if helm_repo_check.returncode != 0:
-        print("Kubescape Helm repository not found. Adding it now...")
-        run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
-    
-    # Always update Helm repositories
-    run_command('helm repo update')
+        repo_name = repo_url.split('/')[-1].replace('.git', '')
+        helm_chart_path = f"/tmp/{repo_name}"
 
-    # Step 5: Apply the update via Helm
-    helm_command = (
-        "helm upgrade --install kubescape kubescape/kubescape-operator "
-        "-n kubescape -f kubescape-autoscale.yaml"
-    )
+        # Check if repo is already cloned, if not - clone it
+        if not os.path.exists(helm_chart_path):
+            clone_command = f"git clone {repo_url} {helm_chart_path}"
+            log_and_print(f"Cloning repository with command: {clone_command}")
+            run_command(clone_command)
+            
+        # Make sure we're on the right branch
+        checkout_command = f"git -C {helm_chart_path} checkout {branch_name}"
+        log_and_print(f"Checking out branch: {checkout_command}")
+        run_command(checkout_command)
+        
+        # Detect the correct chart path
+        possible_chart_paths = [
+            os.path.join(helm_chart_path, "kubescape-operator"),
+            os.path.join(helm_chart_path, "charts", "kubescape-operator")
+        ]
+        
+        chart_location = None
+        for path in possible_chart_paths:
+            if os.path.exists(path):
+                chart_location = path
+                log_and_print(f"Found chart at: {chart_location}")
+                break
+                
+        if not chart_location:
+            error_msg = f"Error: Could not find the kubescape-operator chart in {helm_chart_path}"
+            log_and_print(error_msg)
+            raise Exception(error_msg)
 
+        # Build dependencies for the chart
+        log_and_print(f"Running 'helm dependency build' for {chart_location}...")
+        run_command(f"helm dependency build {chart_location}")
+        
+        # Step 5: Apply the update via Helm with the git branch chart
+        helm_command = (
+            f"helm upgrade --install kubescape {chart_location} "
+            f"-n kubescape -f kubescape-autoscale.yaml"
+        )
+    else:
+        # Use standard chart from Helm repo
+        # Ensure Helm Repo Exists
+        print("Ensuring Kubescape Helm repository is added...")
+        
+        helm_repo_check = subprocess.run(
+            "helm repo list | grep kubescape",
+            shell=True,
+            capture_output=True,
+            text=True
+        )
+
+        if helm_repo_check.returncode != 0:
+            print("Kubescape Helm repository not found. Adding it now...")
+            run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
+        
+        # Always update Helm repositories
+        run_command('helm repo update')
+
+        # Apply the update via standard Helm repo
+        helm_command = (
+            "helm upgrade --install kubescape kubescape/kubescape-operator "
+            "-n kubescape -f kubescape-autoscale.yaml"
+        )
+
+    # Run the prepared helm command
     run_command(helm_command)
     print("Kubescape updated with optimized resource allocation.")
 
@@ -809,7 +859,7 @@ def main():
     check_cluster_ready()
     
     # Step 5: Update Kubescape Helm chart with optimized resources
-    update_kubescape_helm(node_size=args.node_size, node_count=node_count)
+    update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
     print("Kubescape Helm chart updated with optimized resources.")
     time.sleep(30)  # Wait for the operator
     print("Verifying nodeAgent Pyroscope environment variables...")
