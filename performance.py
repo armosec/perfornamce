@@ -833,8 +833,8 @@ def main():
         node_count = args.nodes
     
     # Deploy prometheus and microservices demo
-    # deploy_kube_prometheus_stack()
-    # deploy_pyroscope()
+    deploy_kube_prometheus_stack()
+    deploy_pyroscope()
     
     released_private_node_agent = get_node_agent_tag_from_git()
     # Step 3: Deploy Kubescape using Helm
