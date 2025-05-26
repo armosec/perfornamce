@@ -17,15 +17,15 @@ NODE_SIZES = {
 }
 
 DEFAULT_NODE_SIZE = "s-4vcpu-16gb"
-DEFAULT_NODE_COUNT = 4  
+DEFAULT_NODE_COUNT = 4
 
 def setup_logging():
     # Get the directory where the script is running
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Create log file in the same directory
     log_file = os.path.join(script_dir, "config.log")
-    
+
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
@@ -38,11 +38,11 @@ def setup_logging():
     return logging.getLogger()
 
 logger = setup_logging()
-        
+
 def log_and_print(message):
     print(message)  # Console
     logger.info(message)  # Log file
-        
+
 def run_command(command, cwd=None):
     try:
         result = subprocess.run(command, check=True, capture_output=True, text=True, shell=True, cwd=cwd)
@@ -52,7 +52,7 @@ def run_command(command, cwd=None):
         print(f"Command failed with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
         exit(1)
-        
+
 # Step 1: set up the EKS cluster with Terraform and AWS CLI commands
 def setup_cluster(node_count):
     terraform_dir = os.path.join("terraform-test-clusters", "EKS")
@@ -65,33 +65,33 @@ def setup_cluster(node_count):
         print(f"Applying Terraform configuration with {node_count} nodes...")
         run_command(f'terraform apply -auto-approve -var=desired_size={node_count}', terraform_dir)
         return node_count
-    
+
     except subprocess.CalledProcessError as e:
         print(f"Failed to set up EKS cluster with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
         exit(1)
-        
+
 def connect_to_eks_cluster(region, cluster_name, terraform_dir):
     try:
         # Print the command that will be executed
         command = f"aws eks --region {region} update-kubeconfig --name {cluster_name}"
         print(f"Executing: {command}")
-        
+
         # Execute the command
         subprocess.run(command, check=True, shell=True)
         print("Successfully connected to the EKS cluster.")
-        
+
     except subprocess.CalledProcessError as e:
         print(f"Failed to connect to EKS cluster with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
         exit(1)
-        
+
 def deploy_kube_prometheus_stack():
     try:
         # Define paths relative to the script's directory
         values_file = "./Monitoring/values/kube-prometheus-stack.yaml"
         chart_path = "./Monitoring/kube-prometheus-stack"
-        
+
         # Construct the Helm command
         helm_command = (
             f"helm upgrade --install kube-prometheus-stack "
@@ -99,7 +99,7 @@ def deploy_kube_prometheus_stack():
             f"{chart_path} "
             f"-n monitoring --create-namespace --timeout 10m0s"
         )
-        
+
         # Run the command
         print("Deploying kube-prometheus-stack using Helm...")
         run_command(helm_command)
@@ -108,7 +108,7 @@ def deploy_kube_prometheus_stack():
         print(f"Failed to deploy kube-prometheus-stack with exit code {e.returncode}")
         print(f"Error output:\n{e.stderr}")
         exit(1)
-        
+
 def deploy_pyroscope():
     try:
         # Define paths relative to the script's directory
@@ -131,7 +131,7 @@ def deploy_pyroscope():
         print(f"Error output:\n{e.stderr}")
         exit(1)
 
-        
+
 def create_namespace(namespace_name):
     try:
         subprocess.run(['kubectl', 'create', 'namespace', namespace_name], check=True)
@@ -153,7 +153,7 @@ def create_parallel_namespaces(node_count, skip_cluster=False):
             total_nodes = len(result.stdout.splitlines())
             num_namespaces = (total_nodes - 2) * 2
         else:
-            # Calculate the number of namespaces to create 
+            # Calculate the number of namespaces to create
             num_namespaces = (node_count - 2) * 2
 
         print(f"Creating {num_namespaces} namespaces")
@@ -195,7 +195,7 @@ def apply_microservices_demo(namespaces):
 def apply_microservices_demo_to_namespace(namespace, microservices_demo_path):
     print(f"Applying microservices-demo to namespace {namespace}...")
     try:
-        result = subprocess.run(f'kubectl apply -f {microservices_demo_path} -n {namespace}', 
+        result = subprocess.run(f'kubectl apply -f {microservices_demo_path} -n {namespace}',
                                 check=True, capture_output=True, text=True, shell=True)
         print(f"Successfully applied microservices-demo to namespace {namespace}.")
         return True
@@ -225,12 +225,12 @@ def apply_microservices_demo(namespaces):
 
 # Step 2: Deploy Kubescape using Helm
 def deploy_kubescape(
-    account: str, 
-    accessKey: str, 
-    version: str = None, 
-    enable_kdr: bool = False, 
+    account: str,
+    accessKey: str,
+    version: str = None,
+    enable_kdr: bool = False,
     additional_helm_command: str = None,
-    storage_image_tag: str = None, 
+    storage_image_tag: str = None,
     node_agent_image_tag: str = None,
     private_node_agent: str = None,
     released_private_node_agent: str = None,
@@ -239,7 +239,7 @@ def deploy_kubescape(
     try:
         git_commit_hash = None  # Initialize git commit hash variable
         chart_location = None   # Initialize chart location
-        
+
         if helm_git_branch:
             # Since we always expect a branch name, use the default Kubescape repo
             repo_url = "https://github.com/kubescape/helm-charts.git"
@@ -258,13 +258,13 @@ def deploy_kubescape(
             clone_command = f"git clone {repo_url} {helm_chart_path}"
             log_and_print(f"Cloning repository with command: {clone_command}")
             run_command(clone_command)
-            
+
             # Then checkout to the specified branch if provided
             if branch_name:
                 checkout_command = f"git -C {helm_chart_path} checkout {branch_name}"
                 log_and_print(f"Checking out branch: {checkout_command}")
                 run_command(checkout_command)
-            
+
             # Get the git commit hash after checkout for tracking purposes
             git_commit_hash = run_command(f"git -C {helm_chart_path} rev-parse HEAD").strip()
             log_and_print(f"Using Git commit hash: {git_commit_hash}")
@@ -274,13 +274,13 @@ def deploy_kubescape(
                 os.path.join(helm_chart_path, "kubescape-operator"),
                 os.path.join(helm_chart_path, "charts", "kubescape-operator")
             ]
-            
+
             for path in possible_chart_paths:
                 if os.path.exists(path):
                     chart_location = path
                     log_and_print(f"Found chart at: {chart_location}")
                     break
-                    
+
             if not chart_location:
                 error_msg = f"Error: Could not find the kubescape-operator chart in {helm_chart_path}"
                 log_and_print(error_msg)
@@ -317,22 +317,36 @@ def deploy_kubescape(
             helm_command += f' --version {version}'
 
         if storage_image_tag:
-            helm_command += f' --set storage.image.tag={storage_image_tag} --set storage.image.repository=quay.io/kubescape/storage'
+            repository = "quay.io/kubescape/storage"
+            if storage_image_tag.count("/") > 1:
+                # this is a full image tag, so we need to split it
+                tag = storage_image_tag.split("/")[-1]
+                repository = "/".join(storage_image_tag.split("/")[:-1])
+                helm_command += f' --set storage.image.tag={tag} --set storage.image.repository={repository}'
+            else:
+                helm_command += f' --set storage.image.tag={storage_image_tag} --set storage.image.repository={repository}'
 
         if node_agent_image_tag:
-            helm_command += f' --set nodeAgent.image.tag={node_agent_image_tag} --set nodeAgent.image.repository=quay.io/kubescape/node-agent'
+            repository = "quay.io/kubescape/node-agent"
+            if node_agent_image_tag.count("/") > 1:
+                # this is a full image tag, so we need to split it
+                tag = node_agent_image_tag.split("/")[-1]
+                repository = "/".join(node_agent_image_tag.split("/")[:-1])
+                helm_command += f' --set nodeAgent.image.tag={tag} --set nodeAgent.image.repository={repository}'
+            else:
+                helm_command += f' --set nodeAgent.image.tag={node_agent_image_tag} --set nodeAgent.image.repository={repository}'
 
 
         # Add KDR-specific parameters if enabled
         if enable_kdr:
             additional_params = (
-                ' --set alertCRD.installDefault=true ' 
-                ' --set capabilities.manageWorkloads=enable ' 
-                ' --set capabilities.nodeProfileService=enable ' 
-                ' --set capabilities.runtimeDetection=enable ' 
-                ' --set imagePullSecret.password=Q5UMRCFPRAHAIRWAYTOP7P4PK9ZNV2H26JFTB70CMNZ2KG1NHGPYXK6PNPNC677E ' 
-                ' --set imagePullSecret.server=quay.io ' 
-                ' --set imagePullSecret.username=armosec+armosec_ro ' 
+                ' --set alertCRD.installDefault=true '
+                ' --set capabilities.manageWorkloads=enable '
+                ' --set capabilities.nodeProfileService=enable '
+                ' --set capabilities.runtimeDetection=enable '
+                ' --set imagePullSecret.password=Q5UMRCFPRAHAIRWAYTOP7P4PK9ZNV2H26JFTB70CMNZ2KG1NHGPYXK6PNPNC677E '
+                ' --set imagePullSecret.server=quay.io '
+                ' --set imagePullSecret.username=armosec+armosec_ro '
                 ' --set imagePullSecrets=armosec-readonly '
             )
 
@@ -356,11 +370,11 @@ def deploy_kubescape(
 
         log_and_print(f"Final Helm command: {helm_command}")
         run_command(helm_command)
-        
+
         print("Waiting for operator to deploy - 30 sec")
         time.sleep(30)  # Wait for the operator to deploy
         print("Kubescape Operator deployed successfully.")
-        
+
     except Exception as e:
         log_and_print(f"Error deploying Kubescape: {str(e)}")
         raise
@@ -381,7 +395,7 @@ def get_node_agent_tag_from_git():
         # Parse the YAML content directly from response
         data = yaml.safe_load(response.text)
         tag = data.get('dashboardBE', {}).get('config', {}).get('KubescapeHelmCommandRuntimeThreatDetectionFeatureValues', {}).get('nodeAgent.image.tag', 'No tag found')
-        
+
         if tag:
             print(f"Found nodeAgent.image.tag in GitHub: {tag}")
             return tag
@@ -392,7 +406,7 @@ def get_node_agent_tag_from_git():
         print(f"Error fetching values.yaml from GitHub: {e}")
         exit(1)
         return None
-    
+
 def check_and_fix_node_agent_env():
     """
     Checks if the nodeAgent DaemonSet has the required Pyroscope environment variables.
@@ -405,22 +419,22 @@ def check_and_fix_node_agent_env():
             ['kubectl', 'get', 'daemonset', 'node-agent', '-n', 'kubescape', '-o', 'json'],
             check=True, capture_output=True, text=True
         )
-        
+
         ds_json = json.loads(result.stdout)
-        
+
         # Step 2: Check if the environment variables exist
         env_vars = ds_json.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [{}])[0].get('env', [])
-        
+
         has_pyroscope_server = False
         for env in env_vars:
             if env.get('name') == 'PYROSCOPE_SERVER_SVC':
                 has_pyroscope_server = True
                 break
-        
+
         # Step 3: If environment variables don't exist, patch the DaemonSet
         if not has_pyroscope_server:
             print("Pyroscope environment variables not found in nodeAgent. Adding them...")
-            
+
             # Create the patch JSON
             patch = {
                 "spec": {
@@ -441,37 +455,37 @@ def check_and_fix_node_agent_env():
                     }
                 }
             }
-            
+
             # Convert patch to JSON string
             patch_json = json.dumps(patch)
-            
+
             # Apply the patch
             patch_cmd = [
-                'kubectl', 'patch', 'daemonset', 'node-agent', 
+                'kubectl', 'patch', 'daemonset', 'node-agent',
                 '-n', 'kubescape', '--type', 'strategic', '-p', patch_json
             ]
-            
+
             subprocess.run(patch_cmd, check=True)
             print("Successfully patched nodeAgent DaemonSet with Pyroscope environment variables.")
-            
+
             # Restart the DaemonSet pods to apply changes
             print("Restarting nodeAgent pods to apply changes...")
             subprocess.run([
                 'kubectl', 'rollout', 'restart', 'daemonset/node-agent', '-n', 'kubescape'
             ], check=True)
-            
+
             return True
         else:
             print("Pyroscope environment variables already set in nodeAgent DaemonSet.")
             return False
-            
+
     except subprocess.CalledProcessError as e:
         print(f"Error checking nodeAgent DaemonSet: {e.stderr}")
         return False
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return False
-    
+
 def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detection=True, node_sbom_generation=False, direct_io_storage=False):
     """Calculates resource requests and limits based on node size, count, and cluster resources."""
 
@@ -481,7 +495,7 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
 
     if node_size not in NODE_SIZES:
         print(f"Warning: Unknown NODE_SIZE '{node_size}'. Using default '{DEFAULT_NODE_SIZE}'.")
-        node_size = DEFAULT_NODE_SIZE  
+        node_size = DEFAULT_NODE_SIZE
 
     vcpu_per_node = NODE_SIZES[node_size]["vcpu"]
     memory_per_node_gb = NODE_SIZES[node_size]["memory_gb"]
@@ -564,7 +578,7 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
         log_and_print(f"{pod} -> CPU: {resources['CPU']} cores, Memory: {resources['Memory']} MiB")
 
     return config
-    
+
 def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
     """Updates the Kubescape deployment using Helm based on cluster specifications."""
     print("Updating Kubescape configuration...")
@@ -606,25 +620,25 @@ def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
             clone_command = f"git clone {repo_url} {helm_chart_path}"
             log_and_print(f"Cloning repository with command: {clone_command}")
             run_command(clone_command)
-            
+
         # Make sure we're on the right branch
         checkout_command = f"git -C {helm_chart_path} checkout {branch_name}"
         log_and_print(f"Checking out branch: {checkout_command}")
         run_command(checkout_command)
-        
+
         # Detect the correct chart path
         possible_chart_paths = [
             os.path.join(helm_chart_path, "kubescape-operator"),
             os.path.join(helm_chart_path, "charts", "kubescape-operator")
         ]
-        
+
         chart_location = None
         for path in possible_chart_paths:
             if os.path.exists(path):
                 chart_location = path
                 log_and_print(f"Found chart at: {chart_location}")
                 break
-                
+
         if not chart_location:
             error_msg = f"Error: Could not find the kubescape-operator chart in {helm_chart_path}"
             log_and_print(error_msg)
@@ -633,7 +647,7 @@ def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
         # Build dependencies for the chart
         log_and_print(f"Running 'helm dependency build' for {chart_location}...")
         run_command(f"helm dependency build {chart_location}")
-        
+
         # Step 5: Apply the update via Helm with the git branch chart
         helm_command = (
             f"helm upgrade --install kubescape {chart_location} "
@@ -643,7 +657,7 @@ def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
         # Use standard chart from Helm repo
         # Ensure Helm Repo Exists
         print("Ensuring Kubescape Helm repository is added...")
-        
+
         helm_repo_check = subprocess.run(
             "helm repo list | grep kubescape",
             shell=True,
@@ -654,7 +668,7 @@ def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
         if helm_repo_check.returncode != 0:
             print("Kubescape Helm repository not found. Adding it now...")
             run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
-        
+
         # Always update Helm repositories
         run_command('helm repo update')
 
@@ -668,13 +682,13 @@ def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
     run_command(helm_command)
     print("Kubescape updated with optimized resource allocation.")
 
-    
+
 # Step 3: Wait for the cluster to be ready
 def check_cluster_ready(timeout=300):  # Timeout 5 min
-    start_time = time.time()  
+    start_time = time.time()
 
     while True:
-        elapsed_time = time.time() - start_time  
+        elapsed_time = time.time() - start_time
 
         if elapsed_time > timeout:
             print(f"Timeout exceeded! Waited for {timeout / 60} minutes.")
@@ -709,19 +723,19 @@ def check_cluster_ready(timeout=300):  # Timeout 5 min
                 break
             else:
                 print(f"Waiting for all pods to be ready... ({pods_ready}/{total_pods})")
-        
+
         except subprocess.CalledProcessError as e:
             print("Cluster not ready yet, retrying...")
 
         # Sleep for 10 seconds before checking again
         time.sleep(10)
 
-        
+
 # Step 4: Check for pods in CrashLoopBackOff state using kubectl
 def check_crashloop_pods(namespace='default'):
     try:
         result = subprocess.run(
-            ['kubectl', 'get', 'pods', '-n', namespace], 
+            ['kubectl', 'get', 'pods', '-n', namespace],
             check=True, capture_output=True, text=True
         )
 
@@ -729,7 +743,7 @@ def check_crashloop_pods(namespace='default'):
         total_pods = 0
         stable_pods = 0
 
-        for line in result.stdout.splitlines()[1:]: 
+        for line in result.stdout.splitlines()[1:]:
             total_pods += 1
             columns = line.split()
 
@@ -760,7 +774,7 @@ def check_crashloop_pods(namespace='default'):
     except subprocess.CalledProcessError as e:
         print(f"Failed to check pods in namespace '{namespace}': {e}")
         return False
-    
+
 def check_component_versions():
     """
     Check and display the versions of all Kubescape components deployed in the cluster.
@@ -768,20 +782,20 @@ def check_component_versions():
     try:
         # Run the exact command you provided
         cmd = "kubectl get pods -n kubescape -o jsonpath='{range .items[*]}{.metadata.name}{\" -> \"}{.spec.containers[*].image}{\"\\n\"}{end}' | awk -F'/' '{print $NF}' | awk -F':' '{if ($2 ~ /^v/) print $1\": \"$2; else print $1\": v\"$2}' | sort -u"
-        
+
         result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
-        
+
         # Print the result directly
         log_and_print("\nKubescape Component Versions:")
         if result.stdout:
             log_and_print(result.stdout)
         else:
             print("No components found or all components are pending")
-        
+
     except subprocess.CalledProcessError as e:
         print(f"Error checking component versions: {e}")
         print(f"Error output:\n{e.stderr}")
-    
+
 def destroy_cluster():
     terraform_dir = os.path.join("terraform-test-clusters", "EKS")
 
@@ -811,13 +825,13 @@ def main():
 
 
     args = parser.parse_args()
-    
+
     terraform_dir = os.path.join("terraform-test-clusters", "EKS")
-    
+
     if args.destroy:
         destroy_cluster()
-        return  
-    
+        return
+
     # Step 1: Create cluster and connect to it, unless --skip-cluster is used
     if not args.skip_cluster:
         node_count = setup_cluster(node_count=args.nodes)
@@ -831,11 +845,11 @@ def main():
         # Use default node count if skipping cluster creation
         print("Skipping cluster creation and connection.")
         node_count = args.nodes
-    
+
     # Deploy prometheus and microservices demo
     deploy_kube_prometheus_stack()
     deploy_pyroscope()
-    
+
     released_private_node_agent = get_node_agent_tag_from_git()
     # Step 3: Deploy Kubescape using Helm
     deploy_kubescape(
@@ -849,31 +863,31 @@ def main():
         private_node_agent=args.private_node_agent,
         released_private_node_agent=released_private_node_agent,
         helm_git_branch=args.helm_git_branch
-    ) 
-    
+    )
+
     time.sleep(40)  # Wait for the operator to deploy
     namespaces = create_parallel_namespaces(node_count)
     apply_microservices_demo(namespaces)
-    
+
     # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()
-    
+
     # Step 5: Update Kubescape Helm chart with optimized resources
     update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
     print("Kubescape Helm chart updated with optimized resources.")
     time.sleep(30)  # Wait for the operator
     print("Verifying nodeAgent Pyroscope environment variables...")
-    
+
     if check_and_fix_node_agent_env():
         time.sleep(30)
         print("NodeAgent Pyroscope environment variables fixed successfully.")
     else:
         print("NodeAgent Pyroscope environment variables already set.")
-    
+
 
     # Step 6: Check if any pods are in CrashLoopBackOff state
     print("Checking for pods in CrashLoopBackOff state...")
-    check_crashloop_pods(namespace="kubescape") 
+    check_crashloop_pods(namespace="kubescape")
     check_component_versions()
 
 if __name__ == "__main__":
