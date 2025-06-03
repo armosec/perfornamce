@@ -318,20 +318,20 @@ def deploy_kubescape(
 
         if storage_image_tag:
             repository = "quay.io/kubescape/storage"
-            if storage_image_tag.count("/") > 1:
+            if storage_image_tag.count("/") > 0:
                 # this is a full image tag, so we need to split it
-                tag = storage_image_tag.split("/")[-1]
-                repository = "/".join(storage_image_tag.split("/")[:-1])
+                tag = storage_image_tag.split(":")[-1]
+                repository = ':'.join(storage_image_tag.split(":")[:-1])
                 helm_command += f' --set storage.image.tag={tag} --set storage.image.repository={repository}'
             else:
                 helm_command += f' --set storage.image.tag={storage_image_tag} --set storage.image.repository={repository}'
 
         if node_agent_image_tag:
             repository = "quay.io/kubescape/node-agent"
-            if node_agent_image_tag.count("/") > 1:
+            if node_agent_image_tag.count("/") > 0:
                 # this is a full image tag, so we need to split it
-                tag = node_agent_image_tag.split("/")[-1]
-                repository = "/".join(node_agent_image_tag.split("/")[:-1])
+                tag = node_agent_image_tag.split(":")[-1]
+                repository = ':'.join(node_agent_image_tag.split(":")[:-1])
                 helm_command += f' --set nodeAgent.image.tag={tag} --set nodeAgent.image.repository={repository}'
             else:
                 helm_command += f' --set nodeAgent.image.tag={node_agent_image_tag} --set nodeAgent.image.repository={repository}'
