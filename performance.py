@@ -384,7 +384,7 @@ def get_node_agent_tag_from_git():
     Fetch nodeAgent.image.tag from values.yaml in the GitHub repository.
     """
     repo_url = "https://raw.githubusercontent.com/armosec/kubernetes-deployment/master/Helm/cyberarmor-be-apps/charts/dashboardBEFrontegg/values.yaml"
-    github_token = os.getenv("PERFO_GITHUB_TOKEN")  # Get token from GitHub Actions
+    github_token = os.getenv("PERFO_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN")
 
     headers = {"Authorization": f"token {github_token}"} if github_token else {}
 
@@ -873,8 +873,8 @@ def main():
     check_cluster_ready()
 
     # Step 5: Update Kubescape Helm chart with optimized resources
-    update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
-    print("Kubescape Helm chart updated with optimized resources.")
+    # update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
+    #print("Kubescape Helm chart updated with optimized resources.")
     time.sleep(30)  # Wait for the operator
     print("Verifying nodeAgent Pyroscope environment variables...")
 
