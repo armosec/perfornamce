@@ -353,6 +353,8 @@ def deploy_kubescape(
             # Handle private node agent configuration
             if private_node_agent:
                 additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+            elif node_agent_image_tag:
+                pass # a node agent tag was specified in the args - don't override it
             elif released_private_node_agent:
                 additional_params += f' --set nodeAgent.image.tag={released_private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
             else:
