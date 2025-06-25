@@ -7,9 +7,7 @@ import logging
 
 # Set up logging to file in logs directory (same as check_logs.py)
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/workspace/logs")
-LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
-os.makedirs(LOGS_DIR, exist_ok=True)
-LOG_FILE = os.path.join(LOGS_DIR, "profiles_verifier.log")
+LOG_FILE = os.path.join(OUTPUT_DIR, "profiles_verifier.log")
 
 logging.basicConfig(
     level=logging.INFO,
