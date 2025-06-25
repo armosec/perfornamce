@@ -1,6 +1,22 @@
 from dataclasses import dataclass
 import subprocess
 import json
+import os
+import sys
+import logging
+
+# Set up logging to file in logs directory (same as check_logs.py)
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/workspace/logs")
+LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOGS_DIR, "profiles_verifier.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s',
+    handlers=[logging.FileHandler(LOG_FILE, mode='w'), logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Workload:
@@ -36,10 +52,10 @@ class ProfilesVerifier:
                     if ns in self._excluded_namespaces:
                         continue
                     name = item["metadata"]["name"]
-                    print(f"Found workload {name} in namespace {ns} of kind {kind}")
+                    logger.info(f"Found workload {name} in namespace {ns} of kind {kind}")
                     workloads.append(Workload(Kind=kind, Name=name, Namespace=ns))
             except subprocess.CalledProcessError as e:
-                print(f"Error getting {kind}s: {e}")
+                logger.error(f"Error getting {kind}s: {e}")
                 continue
         return workloads
     
@@ -48,19 +64,19 @@ class ProfilesVerifier:
         Verify the profiles and network neighborhods for all workloads.
         """
         for workload in self._get_all_workloads():
-            print(f"Verifying workload {workload.Name} in namespace {workload.Namespace} of kind {workload.Kind}")
+            logger.info(f"Verifying workload {workload.Name} in namespace {workload.Namespace} of kind {workload.Kind}")
             profile = self._get_profile(workload)
             if profile is None:
-                print(f"Profile not found for workload {workload.Name} in namespace {workload.Namespace}")
+                logger.error(f"Profile not found for workload {workload.Name} in namespace {workload.Namespace}")
                 continue
             network_neighborhood = self._get_network_neighborhood(workload)
             if network_neighborhood is None:
-                print(f"Network neighborhood not found for workload {workload.Name} in namespace {workload.Namespace}")
+                logger.error(f"Network neighborhood not found for workload {workload.Name} in namespace {workload.Namespace}")
                 continue
             if not self._verify_profile_and_network_neighborhood(profile, network_neighborhood):
-                print(f"Profile or network neighborhood is not valid for workload {workload.Name} in namespace {workload.Namespace}")
+                logger.error(f"Profile or network neighborhood is not valid for workload {workload.Name} in namespace {workload.Namespace}")
                 continue
-            print(f"Profile and network neighborhood are valid for workload {workload.Name} in namespace {workload.Namespace}")
+            logger.info(f"Profile and network neighborhood are valid for workload {workload.Name} in namespace {workload.Namespace}")
 
     @staticmethod
     def _get_profile(workload: Workload) -> dict:
@@ -120,10 +136,10 @@ class ProfilesVerifier:
         To verify the network neighborhood we check if the annotation "kubescape.io/status" is "completed".
         """
         if profile.get("metadata", {}).get("annotations", {}).get("kubescape.io/status") != "completed":
-            print(f"[ERROR] Profile {profile.get('metadata', {}).get('name')} in namespace {profile.get('metadata', {}).get('namespace')} is not completed")
+            logger.error(f"[ERROR] Profile {profile.get('metadata', {}).get('name')} in namespace {profile.get('metadata', {}).get('namespace')} is not completed")
             return False
         if network_neighborhood.get("metadata", {}).get("annotations", {}).get("kubescape.io/status") != "completed":
-            print(f"[ERROR] Network neighborhood {network_neighborhood.get('metadata', {}).get('name')} in namespace {network_neighborhood.get('metadata', {}).get('namespace')} is not completed")
+            logger.error(f"[ERROR] Network neighborhood {network_neighborhood.get('metadata', {}).get('name')} in namespace {network_neighborhood.get('metadata', {}).get('namespace')} is not completed")
             return False
         return True
 
