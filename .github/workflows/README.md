@@ -61,6 +61,8 @@ You can use `ADDITIONAL_HELM_COMMAND` to inject extra flags into the Helm instal
     `get_pprof.py` - Collects profiling data of the node agent.
 
     `check_logs.py` - Verifies logs for anomalies (looking for error / fail / panic).
+
+    `profiles_verifier.py` - Verifies that all the application profiles and network neighborhods are exist and valid.
     
     `threshold_check.py` -  Verifies CPU and memory usage against thresholds (fetched from a Kubernetes ConfigMap) and generates a summary JSON report if any breaches are detected. It analyzes the collected metrics and flags pods that exceeded their thresholds for more than 5 seconds.
 
