@@ -77,6 +77,7 @@ data:
     python get_pprof.py
     python threshold_check.py 
     python check_logs.py
+    python profiles_verifier.py
     echo " Do ls to see the files in the directory"
     ls -l /tmpWorkspace/config.log
 
