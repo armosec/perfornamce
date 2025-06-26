@@ -45,14 +45,14 @@ on:
       #   description: 'Your access key'
       #   type: string
       #   required: true
-      STORAGE_VERSION:
-        description: 'Storage version'
-        type: string
-        required: false
-      NODE_AGENT_VERSION:
-        description: 'Node agent version'
-        type: string
-        required: false
+      # STORAGE_VERSION:
+      #   description: 'Storage version'
+      #   type: string
+      #   required: false
+      # NODE_AGENT_VERSION:
+      #   description: 'Node agent version'
+      #   type: string
+      #   required: false
       ENABLE_KDR:
         description: 'Enable KDR'
         required: false
