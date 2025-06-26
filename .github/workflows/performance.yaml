@@ -28,6 +28,11 @@ on:
         type: number
         default: 10
         required: true
+      LOAD_INTERVAL:
+        description: 'Sleep duration in seconds before load generator starts'
+        type: number
+        default: 3600
+        required: false
       # KUBERNETES_VERSION:
       #   description: 'Kubernetes version to use'
       #   type: string
@@ -65,7 +70,7 @@ on:
         description: 'Additional Helm command for deployment'
         required: false
         type: string
-      
+
 
 jobs:
   setup-cluster:
@@ -199,8 +204,10 @@ jobs:
       - name: Deploy the Load Generator Job
         run: |
           # Apply the load-generator-job.yaml
-          cat load-generator-job.yaml | kubectl apply -f -
-      
+          cat load-generator-job.yaml | \
+            sed "s/\$(LOAD_INTERVAL)/${{ github.event.inputs.LOAD_INTERVAL }}/g" | \
+            kubectl apply -f -
+
           echo "Load generator job deployed"
 
       - name: Wait for Pod and Copy config.log to Kubernetes Pod
