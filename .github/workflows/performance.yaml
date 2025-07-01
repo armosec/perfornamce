@@ -14,13 +14,9 @@ on:
           - s-2vcpu-2gb
           - s-4vcpu-8gb
           - s-8vcpu-16gb
-          - s-16vcpu-32gb
-          - s-24vcpu-48gb
-          - s-32vcpu-64gb
-          - s-48vcpu-96gb
-          - s-64vcpu-128gb
-          - s-128vcpu-256gb
-          - s-256vcpu-512gb
+          - c2-16vcpu-32gb
+          - c2-32vcpu-64gb
+          - c2-48vcpu-96gb
         type: choice
         default: s-8vcpu-16gb
         required: true
