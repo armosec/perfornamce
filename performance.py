@@ -877,7 +877,7 @@ def main():
     )
 
     time.sleep(40)  # Wait for the operator to deploy
-    namespaces = create_parallel_namespaces(node_count)
+    namespaces = create_parallel_namespaces(args.node_size,node_count)
     apply_microservices_demo(namespaces)
 
     # Step 4: Check if the cluster is ready by polling the node readiness
