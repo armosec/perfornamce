@@ -15,6 +15,12 @@ on:
           - s-4vcpu-8gb
           - s-8vcpu-16gb
           - s-16vcpu-32gb
+          - s-24vcpu-48gb
+          - s-32vcpu-64gb
+          - s-48vcpu-96gb
+          - s-64vcpu-128gb
+          - s-128vcpu-256gb
+          - s-256vcpu-512gb
         type: choice
         default: s-8vcpu-16gb
         required: true
@@ -142,15 +148,15 @@ jobs:
           if [ ! -z "${{ github.event.inputs.STORAGE_VERSION }}" ]; then
             CMD="$CMD -storage-version ${{ github.event.inputs.STORAGE_VERSION }}"
           fi
-          
+
           if [ ! -z "${{ github.event.inputs.NODE_AGENT_VERSION }}" ]; then
             CMD="$CMD -node-agent-version ${{ github.event.inputs.NODE_AGENT_VERSION }}"
           fi
-          
+
           if [ "${{ github.event.inputs.ENABLE_KDR }}" == "true" ]; then
             CMD="$CMD -kdr"
           fi
-          
+
           if [ ! -z "${{ github.event.inputs.PRIVATE_NODE_AGENT }}" ]; then
             CMD="$CMD -private-node-agent ${{ github.event.inputs.PRIVATE_NODE_AGENT }}"
           fi
@@ -172,10 +178,10 @@ jobs:
 
       - name: Create Git Auth Secret
         run: |
-        
+
           # Create base64 encoded token
           echo -n "${{ secrets.PERFO_GITHUB_TOKEN }}" | base64 > token.b64
-          
+
           # Create the secret
           kubectl create namespace default --dry-run=client -o yaml | kubectl apply -f -
           kubectl create secret generic git-auth \
@@ -191,14 +197,14 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy the Collect Metrics Job
-        run: |         
+        run: |
           # Replace variables in the job yaml
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           cat collect-metrics-job.yaml | \
             sed "s/\$(DATE)/$TIMESTAMP/" | \
             sed "s/\$(DURATION_TIME)/${{ github.event.inputs.DURATION_TIME }}/" | \
             kubectl apply -f -
-          
+
           echo "Metrics collection job deployed with duration: ${{ github.event.inputs.DURATION_TIME }} minutes"
 
       - name: Deploy the Load Generator Job
@@ -216,7 +222,7 @@ jobs:
           POD_NAME=""
           RETRY_COUNT=0
           MAX_RETRIES=30
-          
+
           while [ -z "$POD_NAME" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             POD_NAME=$(kubectl get pod -l job-name=metrics-test -n default -o jsonpath="{.items[0].metadata.name}" 2>/dev/null)
             if [ -z "$POD_NAME" ]; then
@@ -225,59 +231,59 @@ jobs:
               RETRY_COUNT=$((RETRY_COUNT + 1))
             fi
           done
-          
+
           if [ -z "$POD_NAME" ]; then
             echo "ERROR: Pod 'metrics-test' not found after max retries!"
             exit 1
           fi
-          
+
           echo "Found pod: $POD_NAME"
-          
+
           # Wait for the pod to be in Running state
           echo "Waiting for pod to reach Running state..."
           TIMEOUT=300
           ELAPSED=0
           while true; do
             POD_STATUS=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.status.phase}")
-            
+
             echo "Pod Status: $POD_STATUS"
-            
+
             if [ "$POD_STATUS" == "Running" ]; then
               echo "Pod is ready for copying files."
               break
             fi
-            
+
             if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
               echo "ERROR: Timeout! Pod did not reach 'Running' state in time."
               kubectl describe pod "$POD_NAME" -n default
               exit 1
             fi
-            
+
             echo "Waiting 5 seconds for pod to be ready..."
             sleep 5
             ELAPSED=$((ELAPSED + 5))
           done
-          
+
           # Get the container name
           CONTAINER_NAME=$(kubectl get pod "$POD_NAME" -n default -o jsonpath="{.spec.containers[0].name}")
           echo "Using container: $CONTAINER_NAME"
-          
+
           # Create the tmpWorkspace directory in the pod
           echo "Creating /tmpWorkspace directory in the pod..."
           kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- mkdir -p /tmpWorkspace
-          
+
           # Copy config.log to the pod
           echo "Copying config.log to $POD_NAME:/tmpWorkspace/config.log"
           kubectl cp config.log default/$POD_NAME:/tmpWorkspace/config.log -c $CONTAINER_NAME
           echo "kubectl cp config.log debug/"
-          
+
           # Check if the copy was successful
           if [ $? -eq 0 ]; then
             echo "Successfully copied config.log to pod"
-            
+
             # Verify the file exists in the pod
             kubectl exec -n default "$POD_NAME" -c "$CONTAINER_NAME" -- ls -la /tmpWorkspace/config.log
-            
+
             echo "Config.log successfully copied to pod. It will be included in the Git repository."
           else
             echo "WARNING: Failed to copy config.log to pod! The job will continue but may not include config data."

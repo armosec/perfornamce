@@ -13,7 +13,13 @@ NODE_SIZES = {
     "s-2vcpu-2gb": {"vcpu": 2, "memory_gb": 2},
     "s-4vcpu-8gb": {"vcpu": 4, "memory_gb": 8},
     "s-8vcpu-16gb": {"vcpu": 8, "memory_gb": 16},
-    "s-16vcpu-32gb": {"vcpu": 16, "memory_gb": 32}
+    "s-16vcpu-32gb": {"vcpu": 16, "memory_gb": 32},
+    "s-24vcpu-48gb": {"vcpu": 24, "memory_gb": 48},
+    "s-32vcpu-64gb": {"vcpu": 32, "memory_gb": 64},
+    "s-48vcpu-96gb": {"vcpu": 48, "memory_gb": 96},
+    "s-64vcpu-128gb": {"vcpu": 64, "memory_gb": 128},
+    "s-128vcpu-256gb": {"vcpu": 128, "memory_gb": 256},
+    "s-256vcpu-512gb": {"vcpu": 256, "memory_gb": 512}
 }
 
 DEFAULT_NODE_SIZE = "s-4vcpu-16gb"
