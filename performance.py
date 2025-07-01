@@ -144,8 +144,15 @@ def create_namespace(namespace_name):
         print(f"Error output:\n{e.stderr}")
         return None
 
-def create_parallel_namespaces(node_count, skip_cluster=False):
+def create_parallel_namespaces(node_size, node_count, skip_cluster=False):
     try:
+        node_size = NODE_SIZES[node_size]
+        vcpu = node_size["vcpu"]
+        # The original calculation assumes 4cpu and 8Gb memory so let's adjust for that
+        multiplier = vcpu / 4
+        # Adjust the node count for the new node size
+        node_count = int(node_count * multiplier)
+
         if skip_cluster:
             # Get the number of nodes in the cluster
             result = subprocess.run(
@@ -877,7 +884,7 @@ def main():
     check_cluster_ready()
 
     # Step 5: Update Kubescape Helm chart with optimized resources
-    # update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
+    update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
     #print("Kubescape Helm chart updated with optimized resources.")
     time.sleep(30)  # Wait for the operator
     print("Verifying nodeAgent Pyroscope environment variables...")
