@@ -1,0 +1,107 @@
+{
+  "workload_verifications": {
+    "emailservice": {
+      "description": "Email service verification rules",
+      "execs": [
+        {
+          "args": [
+            "/usr/local/bin/python",
+            "email_server.py"
+          ],
+          "path": "/usr/local/bin/python"
+        },
+        {
+          "args": [
+            "/bin/grpc_health_probe",
+            "-addr=:8080"
+          ],
+          "path": "/bin/grpc_health_probe"
+        }
+      ],
+      "opens": [
+        {
+          "path": "/email_server/email_server.py",
+          "flags": [
+            "O_RDONLY",
+            "O_CLOEXEC"
+          ]
+        },
+        {
+          "flags": [
+            "O_RDONLY",
+            "O_CLOEXEC"
+          ],
+          "path": "/etc/ld.so.cache"
+        }
+      ],
+      "network_connections": [
+        {            
+            "ingress": [
+                {
+                    "ports": [
+                        {   "name": "TCP-8080",
+                            "port": 8080,
+                            "protocol": "TCP"
+                        }
+                    ]
+                }
+            ],
+            "egress": []
+        }
+      ]
+    },
+    "shippingservice": {
+      "description": "Shipping service verification rules",
+      "execs": [
+        {
+          "args": [
+            "/bin/grpc_health_probe",
+            "-addr=:50051"
+          ],
+          "path": "/bin/grpc_health_probe"
+        },
+        {
+          "args": [
+            "/src/shippingservice"
+          ],
+          "path": "/src/shippingservice"
+        }
+      ],
+      "opens": [
+        {
+          "path": "/src/shippingservice",
+          "flags": [
+            "O_RDONLY",
+            "O_CLOEXEC"
+          ]
+        }
+      ],
+      "network_connections": []
+    },
+    "productcatalogservice": {
+      "description": "Product catalog service verification rules",
+      "execs": [
+        {
+          "args": [
+            "/bin/grpc_health_probe",
+            "-addr=:3550"
+          ],
+          "path": "/bin/grpc_health_probe"
+        },
+        {
+          "args": [
+            "/src/server"
+          ],
+          "path": "/src/server"
+        }
+      ],
+      "opens": [],
+      "network_connections": []
+    }
+  },
+  "global_settings": {
+    "strict_mode": true,
+    "log_missing_verifications": true,
+    "default_timeout": 30
+  }
+} 
