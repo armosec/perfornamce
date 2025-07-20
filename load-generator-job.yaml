@@ -70,7 +70,7 @@ data:
     sleep $(LOAD_INTERVAL)
     echo "Running load-generator script..."
     while true; do
-        python3 /workspace/load-generator.py
+        python3 /workspace/load-generator-new.py
         echo "Waiting $(LOAD_INTERVAL) seconds before next run..."
         sleep $(LOAD_INTERVAL)
     done
