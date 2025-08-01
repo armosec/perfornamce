@@ -112,13 +112,13 @@ prometheus:
     ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/user-guides/storage.md
     ##
 
-    resources: {}
-      # limits:
-      #   cpu: 4
-      #   memory: 7500Mi
-      # requests:
-      #   cpu: 2
-      #   memory: 4Gi
+    resources:
+      limits:
+        cpu: 4
+        memory: 7500Mi
+      requests:
+        cpu: 2
+        memory: 4Gi
 
     storageSpec:
       volumeClaimTemplate:
