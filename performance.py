@@ -320,7 +320,8 @@ def deploy_kubescape(
             f'--set nodeAgent.env[0].name=PYROSCOPE_SERVER_SVC '
             f'--set nodeAgent.env[0].value=http://pyroscope-distributor.monitoring.svc.cluster.local.:4040 '
             f'--set storage.env[0].name=PYROSCOPE_SERVER_SVC '
-            f'--set storage.env[0].value=http://pyroscope-distributor.monitoring.svc.cluster.local.:4040'
+            f'--set storage.env[0].value=http://pyroscope-distributor.monitoring.svc.cluster.local.:4040 '
+            f'--set nodeAgent.serviceMonitor.enabled=true'
         )
 
         # Add optional parameters
