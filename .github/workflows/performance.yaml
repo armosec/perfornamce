@@ -72,7 +72,14 @@ on:
         description: 'Additional Helm command for deployment'
         required: false
         type: string
-
+      APPLICATION_MODE:
+        description: 'Application mode'
+        options:
+          - microservices-demo
+          - load-simulator
+        type: choice
+        default: microservices-demo
+        required: true
 
 jobs:
   setup-cluster:
@@ -204,6 +211,7 @@ jobs:
           echo "Metrics collection job deployed with duration: ${{ github.event.inputs.DURATION_TIME }} minutes"
 
       - name: Deploy the Load Generator Job
+        if: ${{ github.event.inputs.APPLICATION_MODE == 'microservices-demo' }}
         run: |
           # Apply the load-generator-job.yaml
           cat load-generator-job.yaml | \

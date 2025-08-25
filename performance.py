@@ -231,6 +231,107 @@ def apply_microservices_demo(namespaces):
             except Exception as e:
                 print(f"Namespace {namespace}: Exception occurred: {e}")
 
+def adjust_load_simulator_cpu_resources(yaml_path, cpu_load_ms, number_parallel_cpus):
+        import yaml
+        import tempfile
+
+        # Load the DaemonSet YAML file into a Python variable
+        with open(yaml_path, 'r') as f:
+            daemonset_yaml = list(yaml.safe_load_all(f))
+
+        # Find the DaemonSet spec in the loaded YAML (in case it's a multi-doc YAML)
+        for doc in daemonset_yaml:
+            if doc and doc.get('kind') == 'DaemonSet':
+                ds_spec = doc
+                break
+        else:
+            raise Exception("DaemonSet not found in load simulator YAML")
+
+        # Calculate CPU requests/limits based on cpuLoadMs and numberParallelCPUs
+        total_cpu_millicores = int(cpu_load_ms * number_parallel_cpus)
+
+        # Set the resources in the DaemonSet spec
+        containers = ds_spec['spec']['template']['spec']['containers']
+        for container in containers:
+            if container.get('name') == 'load-simulator':
+                if 'resources' not in container:
+                    container['resources'] = {}
+                container['resources']['requests'] = {
+                    'cpu': f"{total_cpu_millicores}m",
+                    'memory': '128Mi'
+                }
+                container['resources']['limits'] = {
+                    'cpu': f"{total_cpu_millicores}m",
+                    'memory': '512Mi'
+                }
+
+        # Write the modified DaemonSet YAML to a temp file for kubectl apply
+        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.yaml') as tmpf:
+            yaml.dump_all(daemonset_yaml, tmpf)
+            return tmpf.name
+
+def apply_load_simulator(node_size, node_count):
+    print(f"Applying load simulator to {node_count} nodes of size {node_size}...")
+    load_simulator_path = os.path.join("load-simulator", "daemonset.yaml")
+
+
+
+    run_command(f'kubectl create namespace load-simulator')
+
+    # Load simulator parameters
+    exec_rate = 10
+    hardlink_rate = 10
+    http_rate = 10
+    network_rate = 10
+    open_rate = 100
+    symlink_rate = 10
+    dns_rate = 2
+
+    # Get the number of vCPUs in the node size
+    node_size_vcpu = 4
+    if node_size in NODE_SIZES:
+        node_size_vcpu = NODE_SIZES[node_size]["vcpu"]
+    else:
+        print(f"WARNING: Node size {node_size} not found in NODE_SIZES, defaulting to 4 vCPUs")
+        node_size_vcpu = 4
+
+    # 50% cpu load
+    cpu_load_ms = 500
+
+    # Create the config map
+    config_content = f'''cpuLoadMs: {cpu_load_ms}
+numberParallelCPUs: {node_size_vcpu}
+dnsRate: {dns_rate}
+execRate: {exec_rate}
+hardlinkRate: {hardlink_rate}
+httpRate: {http_rate}
+networkRate: {network_rate}
+openRate: {open_rate}
+symlinkRate: {symlink_rate}'''
+
+    # Create configmap using --from-file instead of --from-literal
+    with tempfile.NamedTemporaryFile('w', delete=False, suffix='.yaml') as tmpf:
+        tmpf.write(config_content)
+        config_file = tmpf.name
+
+    run_command(f'kubectl create configmap config --from-file=config.yaml={config_file} -n load-simulator')
+    os.unlink(config_file)  # Clean up temp file
+
+    # Use the function to adjust the DaemonSet YAML before applying
+    load_simulator_path = adjust_load_simulator_cpu_resources(
+        load_simulator_path,
+        cpu_load_ms=cpu_load_ms,
+        number_parallel_cpus=node_size_vcpu
+    )
+
+    run_command(f'kubectl apply -f {load_simulator_path} -n load-simulator')
+
+    # Wait for the load simulator to be ready
+    print("Waiting for the load simulator to be ready...")
+    run_command(f'kubectl wait --for=condition=ready pod -l app=load-simulator -n load-simulator --timeout=300s')
+    print("Load simulator deployed successfully.")
+
+
 
 # Step 2: Deploy Kubescape using Helm
 def deploy_kubescape(
@@ -380,6 +481,10 @@ def deploy_kubescape(
         if additional_helm_command:
             log_and_print(f"Appending additional Helm parameters: {additional_helm_command}")
             helm_command += f" {additional_helm_command}"
+
+        # Enable prometheus metrics in node agent
+        helm_command += ' --set configurations.prometheusAnnotations=enable'
+        helm_command += ' --set nodeAgent.config.prometheusExporter=enable'
 
         log_and_print(f"Final Helm command: {helm_command}")
         run_command(helm_command)
@@ -835,6 +940,7 @@ def main():
     parser.add_argument('-node-agent-version', type=str, help="Specify the node agent image version")
     parser.add_argument('-private-node-agent', type=str, help="Specify the private node agent version")
     parser.add_argument('-helm-git-branch', type=str, help="Git branch name or full repository URL for custom Helm chart")
+    parser.add_argument('--application-mode', type=str, default='microservices-demo', choices=['microservices-demo', 'load-simulator'], help="Application mode (default is 'microservices-demo', other option is 'load-simulator')")
 
 
     args = parser.parse_args()
@@ -879,8 +985,11 @@ def main():
     )
 
     time.sleep(40)  # Wait for the operator to deploy
-    namespaces = create_parallel_namespaces(args.node_size,node_count)
-    apply_microservices_demo(namespaces)
+    if args.application_mode == 'microservices-demo':
+        namespaces = create_parallel_namespaces(args.node_size,node_count)
+        apply_microservices_demo(namespaces)
+    elif args.application_mode == 'load-simulator':
+        apply_load_simulator(node_size=args.node_size, node_count=node_count)
 
     # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()
