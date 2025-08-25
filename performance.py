@@ -486,6 +486,7 @@ def deploy_kubescape(
         # Enable prometheus metrics in node agent
         helm_command += ' --set configurations.prometheusAnnotations=enable'
         helm_command += ' --set nodeAgent.config.prometheusExporter=enable'
+        helm_command += ' --set nodeAgent.serviceMonitor.enabled=true'
 
         log_and_print(f"Final Helm command: {helm_command}")
         run_command(helm_command)
@@ -997,6 +998,7 @@ def main():
 
     # Step 5: Update Kubescape Helm chart with optimized resources
     update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
+
     #print("Kubescape Helm chart updated with optimized resources.")
     time.sleep(30)  # Wait for the operator
     print("Verifying nodeAgent Pyroscope environment variables...")
