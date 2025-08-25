@@ -172,6 +172,10 @@ jobs:
             CMD="$CMD -additional-helm-command \"${{ github.event.inputs.ADDITIONAL_HELM_COMMAND }}\""
           fi
 
+          if [ ! -z "${{ github.event.inputs.APPLICATION_MODE }}" ]; then
+            CMD="$CMD --application-mode \"${{ github.event.inputs.APPLICATION_MODE }}\""
+          fi
+
           echo "Running command: $CMD"
           eval $CMD
 
