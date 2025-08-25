@@ -5,6 +5,7 @@ import json
 import requests
 import argparse
 import subprocess
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 
