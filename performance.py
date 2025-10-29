@@ -492,12 +492,12 @@ def deploy_kubescape(
             for component, resources in resource_config.items():
                 if component == "node-agent":
                     helm_command += f' --set nodeAgent.resources.requests.cpu={resources["CPURequest"]}'
-                    helm_command += f' --set nodeAgent.resources.requests.memory={resources["Memory"]}Mi'
+                    helm_command += f' --set nodeAgent.resources.requests.memory={resources["MemoryRequest"]}Mi'
                     helm_command += f' --set nodeAgent.resources.limits.cpu={resources["CPU"]}'
                     helm_command += f' --set nodeAgent.resources.limits.memory={resources["Memory"]}Mi'
                 elif component == "storage":
                     helm_command += f' --set storage.resources.requests.cpu={resources["CPURequest"]}'
-                    helm_command += f' --set storage.resources.requests.memory={resources["Memory"]}Mi'
+                    helm_command += f' --set storage.resources.requests.memory={resources["MemoryRequest"]}Mi'
                     helm_command += f' --set storage.resources.limits.cpu={resources["CPU"]}'
                     helm_command += f' --set storage.resources.limits.memory={resources["Memory"]}Mi'
                 elif component == "kubevuln":
@@ -678,7 +678,7 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
     node_agent_memory_limit = int(round(0.10 * memory_per_node_gb * 1024 * memory_adjustment))
 
     # **Storage Calculation** - Based on cluster total memory, not workload count
-    storage_memory_request = int(round(0.02 * total_memory_gb * 1024))  # 2% of total cluster memory in MiB
+    storage_memory_request = int(round(0.01 * total_memory_gb * 1024))  # 1% of total cluster memory in MiB
     storage_memory_limit = int(round(0.08 * total_memory_gb * 1024))    # 8% of total cluster memory in MiB
 
     if direct_io_storage:
@@ -698,11 +698,13 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
     config = {
         "node-agent": {
             "Memory": node_agent_memory_limit,
+            "MemoryRequest": node_agent_memory_request,
             "CPU": node_agent_cpu_limit,
             "CPURequest": node_agent_cpu_request
         },
         "storage": {
             "Memory": storage_memory_limit,
+            "MemoryRequest": storage_memory_request,
             "CPU": storage_cpu_limit,
             "CPURequest": storage_cpu_request
         },
