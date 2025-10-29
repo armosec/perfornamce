@@ -347,7 +347,8 @@ def deploy_kubescape(
     released_private_node_agent: str = None,
     helm_git_branch: str = None,
     resource_config: dict = None,
-    use_private_node_agent: bool = False
+    use_private_node_agent: bool = False,
+    application_mode: str = 'microservices-demo'
 ):
     try:
         git_commit_hash = None  # Initialize git commit hash variable
@@ -506,6 +507,11 @@ def deploy_kubescape(
         helm_command += ' --set configurations.prometheusAnnotations=enable'
         helm_command += ' --set nodeAgent.config.prometheusExporter=enable'
         helm_command += ' --set nodeAgent.serviceMonitor.enabled=true'
+
+        # Disable HTTP exporter for load-simulator mode to prevent alerts to Armo backend
+        if application_mode == 'load-simulator':
+            log_and_print("Load-simulator mode detected: disabling node-agent HTTP exporter to prevent alerts to Armo backend")
+            helm_command += ' --set nodeAgent.config.httpExporterConfig=null'
 
         log_and_print(f"Final Helm command: {helm_command}")
         run_command(helm_command)
@@ -1026,7 +1032,8 @@ def main():
         released_private_node_agent=released_private_node_agent,
         helm_git_branch=args.helm_git_branch,
         resource_config=resource_config,
-        use_private_node_agent=args.use_private_node_agent
+        use_private_node_agent=args.use_private_node_agent,
+        application_mode=args.application_mode
     )
 
     time.sleep(40)  # Wait for the operator to deploy

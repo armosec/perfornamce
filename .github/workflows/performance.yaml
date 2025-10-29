@@ -73,7 +73,7 @@ on:
         required: false
         type: string
       APPLICATION_MODE:
-        description: 'Application mode'
+        description: 'Application mode (load-simulator disables node-agent HTTP exporter to prevent Armo backend alerts)'
         options:
           - microservices-demo
           - load-simulator
