@@ -671,11 +671,11 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
     cpu_adjustment = 0.75 if not runtime_detection else 1.0  # Reduce by 25% if runtimeDetection is off
     memory_adjustment = 1.0 + (0.2 if node_sbom_generation else 0)  # Add 200MB if nodeSbomGeneration is on
 
-    node_agent_cpu_request = round(0.025 * vcpu_per_node * cpu_adjustment, 3)
-    node_agent_cpu_limit = round(0.10 * vcpu_per_node * cpu_adjustment, 3)
+    node_agent_cpu_request = max(0.01, round(0.01 * vcpu_per_node * cpu_adjustment, 3))
+    node_agent_cpu_limit = max(0.05, round(0.10 * vcpu_per_node * cpu_adjustment, 3))
     # Convert to integer MiB values to avoid fractional byte issues
-    node_agent_memory_request = int(round(0.025 * memory_per_node_gb * 1024 * memory_adjustment))
-    node_agent_memory_limit = int(round(0.10 * memory_per_node_gb * 1024 * memory_adjustment))
+    node_agent_memory_request = max(200, int(round(0.01 * memory_per_node_gb * 1024 * memory_adjustment)))
+    node_agent_memory_limit = max(1024, int(round(0.10 * memory_per_node_gb * 1024 * memory_adjustment)))
 
     # **Storage Calculation** - Based on cluster total memory, not workload count
     storage_memory_request = int(round(0.01 * total_memory_gb * 1024))  # 1% of total cluster memory in MiB
