@@ -66,13 +66,13 @@ data:
     cd /workspace
 
     echo "start load generator"
-    echo "Waiting $(LOAD_INTERVAL) seconds before starting..."
-    sleep $(LOAD_INTERVAL)
+    echo "Waiting 3600 seconds before starting..."
+    sleep 3600
     echo "Running load-generator script..."
     while true; do
         python3 /workspace/load-generator-new.py
-        echo "Waiting $(LOAD_INTERVAL) seconds before next run..."
-        sleep $(LOAD_INTERVAL)
+        echo "Waiting 3600 seconds before next run..."
+        sleep 3600
     done
 
 ---
@@ -104,8 +104,6 @@ spec:
           value: "10"
         - name: DNS_WORKERS
           value: "10"
-        - name: LOAD_INTERVAL
-          value: "$(LOAD_INTERVAL)"
         volumeMounts:
         - name: load-generator-script
           mountPath: /scripts

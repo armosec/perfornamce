@@ -30,11 +30,6 @@ on:
         type: number
         default: 10
         required: true
-      LOAD_INTERVAL:
-        description: 'Sleep duration in seconds before load generator starts'
-        type: number
-        default: 3600
-        required: false
       # KUBERNETES_VERSION:
       #   description: 'Kubernetes version to use'
       #   type: string
@@ -228,9 +223,7 @@ jobs:
         if: ${{ github.event.inputs.APPLICATION_MODE == 'microservices-demo' }}
         run: |
           # Apply the load-generator-job.yaml
-          cat load-generator-job.yaml | \
-            sed "s/\$(LOAD_INTERVAL)/${{ github.event.inputs.LOAD_INTERVAL }}/g" | \
-            kubectl apply -f -
+          kubectl apply -f load-generator-job.yaml
 
           echo "Load generator job deployed"
 
