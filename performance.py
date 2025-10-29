@@ -677,17 +677,17 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
     node_agent_memory_request = int(round(0.025 * memory_per_node_gb * 1024 * memory_adjustment))
     node_agent_memory_limit = int(round(0.10 * memory_per_node_gb * 1024 * memory_adjustment))
 
-    # **Storage Calculation**
-    storage_memory_request = int(round(0.2 * total_resources))  # Convert to integer MiB
-    storage_memory_limit = int(round(0.8 * total_resources))    # Convert to integer MiB
+    # **Storage Calculation** - Based on cluster total memory, not workload count
+    storage_memory_request = int(round(0.02 * total_memory_gb * 1024))  # 2% of total cluster memory in MiB
+    storage_memory_limit = int(round(0.08 * total_memory_gb * 1024))    # 8% of total cluster memory in MiB
 
     if direct_io_storage:
         storage_memory_request = int(storage_memory_request / 2)
         storage_memory_limit = int(storage_memory_limit / 2)
 
     # Calculate CPU based on memory, ensuring minimum values
-    storage_cpu_limit = max(0.1, round(storage_memory_limit / 8000, 3))  # Minimum 0.1 cores
-    storage_cpu_request = max(0.05, round(storage_cpu_limit * 0.5, 3))   # 50% of limit, minimum 0.05 cores
+    storage_cpu_limit = max(0.5, round(storage_memory_limit / 8000, 3))  # Minimum 0.5 cores
+    storage_cpu_request = max(0.2, round(storage_cpu_limit * 0.5, 3))   # 50% of limit, minimum 0.2 cores
 
     # **KubeVuln Calculation**
     largest_image_size_mb = 1000  # Assume 1GB image size
