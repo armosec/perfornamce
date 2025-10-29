@@ -258,7 +258,7 @@ def adjust_load_simulator_cpu_resources(yaml_path, cpu_load_ms, number_parallel_
                 if 'resources' not in container:
                     container['resources'] = {}
                 container['resources']['requests'] = {
-                    'cpu': f"{total_cpu_millicores}m",
+                    'cpu': f"{total_cpu_millicores // 2}m",
                     'memory': '128Mi'
                 }
                 container['resources']['limits'] = {
