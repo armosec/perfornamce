@@ -491,15 +491,17 @@ def deploy_kubescape(
             log_and_print("Adding resource configuration to Helm command...")
             for component, resources in resource_config.items():
                 if component == "node-agent":
-                    helm_command += f' --set nodeAgent.resources.requests.cpu={resources["CPU"]}'
+                    helm_command += f' --set nodeAgent.resources.requests.cpu={resources["CPURequest"]}'
                     helm_command += f' --set nodeAgent.resources.requests.memory={resources["Memory"]}Mi'
                     helm_command += f' --set nodeAgent.resources.limits.cpu={resources["CPU"]}'
                     helm_command += f' --set nodeAgent.resources.limits.memory={resources["Memory"]}Mi'
                 elif component == "storage":
+                    helm_command += f' --set storage.resources.requests.cpu={resources["CPURequest"]}'
                     helm_command += f' --set storage.resources.requests.memory={resources["Memory"]}Mi'
                     helm_command += f' --set storage.resources.limits.cpu={resources["CPU"]}'
                     helm_command += f' --set storage.resources.limits.memory={resources["Memory"]}Mi'
                 elif component == "kubevuln":
+                    helm_command += f' --set kubevuln.resources.requests.cpu={resources["CPURequest"]}'
                     helm_command += f' --set kubevuln.resources.limits.cpu={resources["CPU"]}'
                     helm_command += f' --set kubevuln.resources.limits.memory={resources["Memory"]}Mi'
 
@@ -671,36 +673,43 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
 
     node_agent_cpu_request = round(0.025 * vcpu_per_node * cpu_adjustment, 3)
     node_agent_cpu_limit = round(0.10 * vcpu_per_node * cpu_adjustment, 3)
-    node_agent_memory_request = round(0.025 * memory_per_node_gb * 1024 * memory_adjustment, 2)
-    node_agent_memory_limit = round(0.10 * memory_per_node_gb * 1024 * memory_adjustment, 2)
+    # Convert to integer MiB values to avoid fractional byte issues
+    node_agent_memory_request = int(round(0.025 * memory_per_node_gb * 1024 * memory_adjustment))
+    node_agent_memory_limit = int(round(0.10 * memory_per_node_gb * 1024 * memory_adjustment))
 
     # **Storage Calculation**
-    storage_memory_request = round(0.2 * total_resources, 2)
-    storage_memory_limit = round(0.8 * total_resources, 2)
+    storage_memory_request = int(round(0.2 * total_resources))  # Convert to integer MiB
+    storage_memory_limit = int(round(0.8 * total_resources))    # Convert to integer MiB
 
     if direct_io_storage:
-        storage_memory_request /= 2
-        storage_memory_limit /= 2
+        storage_memory_request = int(storage_memory_request / 2)
+        storage_memory_limit = int(storage_memory_limit / 2)
 
-    storage_cpu_limit = round(storage_memory_limit / 8000, 3)  # Scale CPU based on memory
+    # Calculate CPU based on memory, ensuring minimum values
+    storage_cpu_limit = max(0.1, round(storage_memory_limit / 8000, 3))  # Minimum 0.1 cores
+    storage_cpu_request = max(0.05, round(storage_cpu_limit * 0.5, 3))   # 50% of limit, minimum 0.05 cores
 
     # **KubeVuln Calculation**
     largest_image_size_mb = 1000  # Assume 1GB image size
     kubevuln_memory_limit = largest_image_size_mb + 400
-    kubevuln_cpu_limit = round(0.1 * total_vcpu, 3)
+    kubevuln_cpu_limit = max(0.1, round(0.1 * total_vcpu, 3))  # Minimum 0.1 cores
+    kubevuln_cpu_request = max(0.05, round(kubevuln_cpu_limit * 0.5, 3))  # 50% of limit, minimum 0.05 cores
 
     config = {
         "node-agent": {
             "Memory": node_agent_memory_limit,
-            "CPU": node_agent_cpu_limit
+            "CPU": node_agent_cpu_limit,
+            "CPURequest": node_agent_cpu_request
         },
         "storage": {
             "Memory": storage_memory_limit,
-            "CPU": storage_cpu_limit
+            "CPU": storage_cpu_limit,
+            "CPURequest": storage_cpu_request
         },
         "kubevuln": {
             "Memory": kubevuln_memory_limit,
-            "CPU": kubevuln_cpu_limit
+            "CPU": kubevuln_cpu_limit,
+            "CPURequest": kubevuln_cpu_request
         }
     }
 
@@ -723,7 +732,10 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
 
     log_and_print("\n Computed Resource Allocations:")
     for pod, resources in config.items():
-        log_and_print(f"{pod} -> CPU: {resources['CPU']} cores, Memory: {resources['Memory']} MiB")
+        if 'CPURequest' in resources:
+            log_and_print(f"{pod} -> CPU Request: {resources['CPURequest']} cores, CPU Limit: {resources['CPU']} cores, Memory: {resources['Memory']} MiB")
+        else:
+            log_and_print(f"{pod} -> CPU: {resources['CPU']} cores, Memory: {resources['Memory']} MiB")
 
     return config
 
