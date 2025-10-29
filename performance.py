@@ -345,7 +345,9 @@ def deploy_kubescape(
     node_agent_image_tag: str = None,
     private_node_agent: str = None,
     released_private_node_agent: str = None,
-    helm_git_branch: str = None
+    helm_git_branch: str = None,
+    resource_config: dict = None,
+    use_private_node_agent: bool = False
 ):
     try:
         git_commit_hash = None  # Initialize git commit hash variable
@@ -463,18 +465,18 @@ def deploy_kubescape(
                 ' --set imagePullSecrets=armosec-readonly '
             )
 
-            # Handle private node agent configuration
-            if private_node_agent:
-                additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+            # Handle private node agent configuration only if use_private_node_agent is specified
+            if use_private_node_agent:
+                if private_node_agent:
+                    additional_params += f' --set nodeAgent.image.tag={private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+                elif released_private_node_agent:
+                    additional_params += f' --set nodeAgent.image.tag={released_private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
+                else:
+                    error_msg = "ERROR: -use-private-node-agent specified but no private node agent version available (neither -private-node-agent nor released_private_node_agent)."
+                    print(error_msg)
+                    raise Exception(error_msg)
             elif node_agent_image_tag:
                 pass # a node agent tag was specified in the args - don't override it
-            elif released_private_node_agent:
-                additional_params += f' --set nodeAgent.image.tag={released_private_node_agent} --set nodeAgent.image.repository=quay.io/armosec/node-agent'
-            else:
-                error_msg = "ERROR: No private_node_agent provided and no released_private_node_agent found."
-                print(error_msg)
-                if enable_kdr:  # Only raise exception if KDR is enabled and we need these parameters
-                    raise Exception(error_msg)
 
             helm_command += ' ' + additional_params
 
@@ -482,6 +484,23 @@ def deploy_kubescape(
         if additional_helm_command:
             log_and_print(f"Appending additional Helm parameters: {additional_helm_command}")
             helm_command += f" {additional_helm_command}"
+
+        # Add resource configuration if provided
+        if resource_config:
+            log_and_print("Adding resource configuration to Helm command...")
+            for component, resources in resource_config.items():
+                if component == "node-agent":
+                    helm_command += f' --set nodeAgent.resources.requests.cpu={resources["CPU"]}'
+                    helm_command += f' --set nodeAgent.resources.requests.memory={resources["Memory"]}Mi'
+                    helm_command += f' --set nodeAgent.resources.limits.cpu={resources["CPU"]}'
+                    helm_command += f' --set nodeAgent.resources.limits.memory={resources["Memory"]}Mi'
+                elif component == "storage":
+                    helm_command += f' --set storage.resources.requests.memory={resources["Memory"]}Mi'
+                    helm_command += f' --set storage.resources.limits.cpu={resources["CPU"]}'
+                    helm_command += f' --set storage.resources.limits.memory={resources["Memory"]}Mi'
+                elif component == "kubevuln":
+                    helm_command += f' --set kubevuln.resources.limits.cpu={resources["CPU"]}'
+                    helm_command += f' --set kubevuln.resources.limits.memory={resources["Memory"]}Mi'
 
         # Enable prometheus metrics in node agent
         helm_command += ' --set configurations.prometheusAnnotations=enable'
@@ -606,8 +625,8 @@ def check_and_fix_node_agent_env():
         print(f"Unexpected error: {str(e)}")
         return False
 
-def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detection=True, node_sbom_generation=False, direct_io_storage=False):
-    """Calculates resource requests and limits based on node size, count, and cluster resources."""
+def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detection=True, node_sbom_generation=False, direct_io_storage=False, estimated_workloads=None):
+    """Calculates resource requests and limits based on node size, count, and estimated cluster resources."""
 
     node_size = node_size or DEFAULT_NODE_SIZE
     node_count = node_count or DEFAULT_NODE_COUNT
@@ -631,11 +650,14 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
 
     print(f"\nCluster Resources - Nodes: {node_count}, Total vCPU: {total_vcpu}, Total Memory: {total_memory_gb}GB")
 
-    # Get the total number of resources in the cluster
-    total_resources = int(subprocess.run(
-        ['kubectl', 'get', 'all', '-A', '--no-headers'],
-        check=True, capture_output=True, text=True
-    ).stdout.strip().count("\n"))
+    # Estimate total resources based on node count and application mode
+    if estimated_workloads is None:
+        # Estimate based on node count: microservices-demo creates (node_count-2)*2 namespaces
+        # Each namespace has ~10-15 pods, so estimate total workloads
+        estimated_workloads = (node_count - 2) * 2 * 12  # 12 pods per namespace average
+
+    total_resources = estimated_workloads
+    log_and_print(f"Estimated total workloads: {total_resources}")
 
     # **Node-Agent Calculation (Matching Guidelines)**
     cpu_adjustment = 0.75 if not runtime_detection else 1.0  # Reduce by 25% if runtimeDetection is off
@@ -700,7 +722,12 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
     return config
 
 def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
-    """Updates the Kubescape deployment using Helm based on cluster specifications."""
+    """
+    DEPRECATED: Updates the Kubescape deployment using Helm based on cluster specifications.
+
+    This function is deprecated in favor of calculating resources upfront and using
+    a single Helm installation in deploy_kubescape().
+    """
     print("Updating Kubescape configuration...")
 
     # Step 1: Calculate optimal resources
@@ -941,6 +968,7 @@ def main():
     parser.add_argument('-storage-version', type=str, help="Specify the storage image version")
     parser.add_argument('-node-agent-version', type=str, help="Specify the node agent image version")
     parser.add_argument('-private-node-agent', type=str, help="Specify the private node agent version")
+    parser.add_argument('-use-private-node-agent', action='store_true', help="Use private node agent image when KDR is enabled")
     parser.add_argument('-helm-git-branch', type=str, help="Git branch name or full repository URL for custom Helm chart")
     parser.add_argument('--application-mode', type=str, default='microservices-demo', choices=['microservices-demo', 'load-simulator'], help="Application mode (default is 'microservices-demo', other option is 'load-simulator')")
 
@@ -971,8 +999,21 @@ def main():
     deploy_kube_prometheus_stack()
     deploy_pyroscope()
 
-    released_private_node_agent = get_node_agent_tag_from_git()
-    # Step 3: Deploy Kubescape using Helm
+    # Calculate resources ahead of time for single Helm installation
+    log_and_print("Calculating resource requirements...")
+    resource_config = calculate_resources(
+        node_size=args.node_size,
+        node_count=node_count,
+        enable_kdr=args.kdr
+    )
+
+    # Only fetch released_private_node_agent if use_private_node_agent is specified
+    # This allows KDR to work with default Helm chart images unless explicitly requested
+    released_private_node_agent = None
+    if args.use_private_node_agent:
+        released_private_node_agent = get_node_agent_tag_from_git()
+
+    # Step 3: Deploy Kubescape using Helm with pre-calculated resources
     deploy_kubescape(
         account=args.account,
         accessKey=args.accessKey,
@@ -983,7 +1024,9 @@ def main():
         node_agent_image_tag=args.node_agent_version,
         private_node_agent=args.private_node_agent,
         released_private_node_agent=released_private_node_agent,
-        helm_git_branch=args.helm_git_branch
+        helm_git_branch=args.helm_git_branch,
+        resource_config=resource_config,
+        use_private_node_agent=args.use_private_node_agent
     )
 
     time.sleep(40)  # Wait for the operator to deploy
@@ -996,10 +1039,7 @@ def main():
     # Step 4: Check if the cluster is ready by polling the node readiness
     check_cluster_ready()
 
-    # Step 5: Update Kubescape Helm chart with optimized resources
-    update_kubescape_helm(node_size=args.node_size, node_count=node_count, helm_git_branch=args.helm_git_branch)
-
-    #print("Kubescape Helm chart updated with optimized resources.")
+    # Note: Resource optimization is now included in the initial Helm installation
     time.sleep(30)  # Wait for the operator
     print("Verifying nodeAgent Pyroscope environment variables...")
 

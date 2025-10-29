@@ -60,8 +60,13 @@ on:
         required: false
         type: boolean
         default: false
+      USE_PRIVATE_NODE_AGENT:
+        description: 'Use private node agent image when KDR is enabled'
+        required: false
+        type: boolean
+        default: false
       PRIVATE_NODE_AGENT:
-        description: 'Private node agent version'
+        description: 'Private node agent version (only used if USE_PRIVATE_NODE_AGENT is true)'
         required: false
         type: string
       HELM_GIT_BRANCH:
@@ -135,6 +140,7 @@ jobs:
           echo "STORAGE_VERSION: ${{ github.event.inputs.STORAGE_VERSION }}"
           echo "NODE_AGENT_VERSION: ${{ github.event.inputs.NODE_AGENT_VERSION }}"
           echo "ENABLE_KDR: ${{ github.event.inputs.ENABLE_KDR }}"
+          echo "USE_PRIVATE_NODE_AGENT: ${{ github.event.inputs.USE_PRIVATE_NODE_AGENT }}"
           echo "PRIVATE_NODE_AGENT: ${{ github.event.inputs.PRIVATE_NODE_AGENT }}"
           echo "HELM_GIT_BRANCH: ${{ github.event.inputs.HELM_GIT_BRANCH }}"
 
@@ -158,6 +164,10 @@ jobs:
 
           if [ "${{ github.event.inputs.ENABLE_KDR }}" == "true" ]; then
             CMD="$CMD -kdr"
+          fi
+
+          if [ "${{ github.event.inputs.USE_PRIVATE_NODE_AGENT }}" == "true" ]; then
+            CMD="$CMD -use-private-node-agent"
           fi
 
           if [ ! -z "${{ github.event.inputs.PRIVATE_NODE_AGENT }}" ]; then
