@@ -692,8 +692,9 @@ def calculate_resources(node_size, node_count, enable_kdr=False, runtime_detecti
     # **KubeVuln Calculation**
     largest_image_size_mb = 1000  # Assume 1GB image size
     kubevuln_memory_limit = largest_image_size_mb + 400
-    kubevuln_cpu_limit = max(0.1, round(0.1 * total_vcpu, 3))  # Minimum 0.1 cores
-    kubevuln_cpu_request = max(0.05, round(kubevuln_cpu_limit * 0.5, 3))  # 50% of limit, minimum 0.05 cores
+    # KubeVuln should be much more conservative - max 0.25 cores regardless of cluster size
+    kubevuln_cpu_limit = min(0.25, max(0.1, round(0.01 * total_vcpu, 3)))  # Max 0.25 cores, min 0.1 cores
+    kubevuln_cpu_request = max(0.08, round(kubevuln_cpu_limit * 0.5, 3))  # 50% of limit, minimum 0.05 cores
 
     config = {
         "node-agent": {
