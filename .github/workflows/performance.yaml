@@ -50,20 +50,14 @@ on:
       #   description: 'Node agent version'
       #   type: string
       #   required: false
-      ENABLE_KDR:
-        description: 'Enable KDR'
-        required: false
-        type: boolean
-        default: false
-      USE_PRIVATE_NODE_AGENT:
-        description: 'Use private node agent image when KDR is enabled'
-        required: false
-        type: boolean
-        default: false
-      PRIVATE_NODE_AGENT:
-        description: 'Private node agent version (only used if USE_PRIVATE_NODE_AGENT is true)'
-        required: false
-        type: string
+      HELM_CHART_TYPE:
+        description: 'Helm chart type to use'
+        options:
+          - public
+          - armo
+        type: choice
+        default: public
+        required: true
       HELM_GIT_BRANCH:
         description: 'Helm chart branch (e.g., main)'
         required: false
@@ -134,9 +128,8 @@ jobs:
           # echo "KUBERNETES_VERSION: ${{ github.event.inputs.KUBERNETES_VERSION }}"
           echo "STORAGE_VERSION: ${{ github.event.inputs.STORAGE_VERSION }}"
           echo "NODE_AGENT_VERSION: ${{ github.event.inputs.NODE_AGENT_VERSION }}"
-          echo "ENABLE_KDR: ${{ github.event.inputs.ENABLE_KDR }}"
-          echo "USE_PRIVATE_NODE_AGENT: ${{ github.event.inputs.USE_PRIVATE_NODE_AGENT }}"
-          echo "PRIVATE_NODE_AGENT: ${{ github.event.inputs.PRIVATE_NODE_AGENT }}"
+          echo "KDR: Always enabled"
+          echo "HELM_CHART_TYPE: ${{ github.event.inputs.HELM_CHART_TYPE }}"
           echo "HELM_GIT_BRANCH: ${{ github.event.inputs.HELM_GIT_BRANCH }}"
 
       - name: Run Performance Test
@@ -157,16 +150,12 @@ jobs:
             CMD="$CMD -node-agent-version ${{ github.event.inputs.NODE_AGENT_VERSION }}"
           fi
 
-          if [ "${{ github.event.inputs.ENABLE_KDR }}" == "true" ]; then
-            CMD="$CMD -kdr"
-          fi
+          # KDR is always enabled in GitHub workflow runs
+          CMD="$CMD -kdr"
 
-          if [ "${{ github.event.inputs.USE_PRIVATE_NODE_AGENT }}" == "true" ]; then
-            CMD="$CMD -use-private-node-agent"
-          fi
-
-          if [ ! -z "${{ github.event.inputs.PRIVATE_NODE_AGENT }}" ]; then
-            CMD="$CMD -private-node-agent ${{ github.event.inputs.PRIVATE_NODE_AGENT }}"
+          # Pass helm chart type to the script
+          if [ ! -z "${{ github.event.inputs.HELM_CHART_TYPE }}" ]; then
+            CMD="$CMD --helm-chart-type ${{ github.event.inputs.HELM_CHART_TYPE }}"
           fi
 
           if [ ! -z "${{ github.event.inputs.HELM_GIT_BRANCH }}" ]; then

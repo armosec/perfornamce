@@ -6,6 +6,7 @@ import requests
 import argparse
 import subprocess
 import tempfile
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 
@@ -334,6 +335,54 @@ symlinkRate: {symlink_rate}'''
 
 
 
+def prefix_helm_set_params(command: str, prefix: str) -> str:
+    """
+    Prefix all --set parameter keys in a helm command with the given prefix.
+    For armo chart, all parameters need to be prefixed with 'kubescape-operator.'
+    Example: '--set account=value' becomes '--set kubescape-operator.account=value'
+    """
+    if not prefix:
+        return command
+
+    # Split command by --set to process each parameter
+    parts = command.split('--set')
+    if len(parts) <= 1:
+        return command
+
+    result = parts[0]  # Keep the part before first --set (helm upgrade --install etc.)
+
+    # Process each --set parameter
+    for part in parts[1:]:
+        part = part.strip()
+        if not part:
+            continue
+
+        # Extract the parameter key (everything before = or space)
+        if '=' in part:
+            # Find the end of the key
+            key_end = part.index('=')
+            key = part[:key_end].strip()
+            value_part = part[key_end:]
+
+            # Don't prefix if already prefixed
+            if not key.startswith(prefix + '.'):
+                key = f"{prefix}.{key}"
+
+            result += f" --set {key}{value_part}"
+        else:
+            # No = sign, treat entire part as key
+            key = part.split()[0] if part.split() else part
+
+            # Don't prefix if already prefixed
+            if not key.startswith(prefix + '.'):
+                key = f"{prefix}.{key}"
+
+            # Preserve rest of the part if any
+            rest = ' '.join(part.split()[1:]) if len(part.split()) > 1 else ''
+            result += f" --set {key}" + (f" {rest}" if rest else "")
+
+    return result
+
 # Step 2: Deploy Kubescape using Helm
 def deploy_kubescape(
     account: str,
@@ -348,17 +397,28 @@ def deploy_kubescape(
     helm_git_branch: str = None,
     resource_config: dict = None,
     use_private_node_agent: bool = False,
-    application_mode: str = 'microservices-demo'
+    application_mode: str = 'microservices-demo',
+    helm_chart_type: str = 'public'
 ):
     try:
         git_commit_hash = None  # Initialize git commit hash variable
         chart_location = None   # Initialize chart location
 
+        # Determine repository URL and prefix based on helm_chart_type
+        if helm_chart_type == 'armo':
+            default_repo_url = "https://github.com/armosec/helm-charts.git"
+            param_prefix = "kubescape-operator"
+            log_and_print(f"Using Armo helm chart from {default_repo_url}")
+        else:  # public
+            default_repo_url = "https://github.com/kubescape/helm-charts.git"
+            param_prefix = None
+            log_and_print(f"Using public Kubescape helm chart from {default_repo_url}")
+
         if helm_git_branch:
-            # Since we always expect a branch name, use the default Kubescape repo
-            repo_url = "https://github.com/kubescape/helm-charts.git"
+            # Use the appropriate repository based on helm_chart_type
+            repo_url = default_repo_url
             branch_name = helm_git_branch
-            log_and_print(f"Using default repo {repo_url} with branch {branch_name}")
+            log_and_print(f"Using repo {repo_url} with branch {branch_name}")
 
             repo_name = repo_url.split('/')[-1].replace('.git', '')
             helm_chart_path = f"/tmp/{repo_name}"
@@ -383,11 +443,17 @@ def deploy_kubescape(
             git_commit_hash = run_command(f"git -C {helm_chart_path} rev-parse HEAD").strip()
             log_and_print(f"Using Git commit hash: {git_commit_hash}")
 
-            # Detect the correct chart path
-            possible_chart_paths = [
-                os.path.join(helm_chart_path, "kubescape-operator"),
-                os.path.join(helm_chart_path, "charts", "kubescape-operator")
-            ]
+            # Detect the correct chart path based on chart type
+            if helm_chart_type == 'armo':
+                # Armo chart is in charts/kubescape-operator subdirectory
+                possible_chart_paths = [
+                    os.path.join(helm_chart_path, "charts", "kubescape-operator")
+                ]
+            else:  # public
+                possible_chart_paths = [
+                    os.path.join(helm_chart_path, "kubescape-operator"),
+                    os.path.join(helm_chart_path, "charts", "kubescape-operator")
+                ]
 
             for path in possible_chart_paths:
                 if os.path.exists(path):
@@ -405,10 +471,38 @@ def deploy_kubescape(
             run_command(f"helm dependency build {chart_location}")
 
         else:
-            log_and_print("Using Kubescape Helm repository...")
-            run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
-            run_command('helm repo update')
-            chart_location = "kubescape/kubescape-operator"
+            # Use Helm repository
+            if helm_chart_type == 'armo':
+                log_and_print("Using Armo Helm repository...")
+                # Note: Armo helm repo URL - update this if they have a public helm repo
+                # For now, we'll still need to use git clone for armo chart
+                log_and_print("Armo chart via Helm repo not yet supported, falling back to git clone")
+                # Clone the armo helm charts repo
+                repo_url = default_repo_url
+                repo_name = repo_url.split('/')[-1].replace('.git', '')
+                helm_chart_path = f"/tmp/{repo_name}-armo"
+
+                if os.path.exists(helm_chart_path):
+                    log_and_print(f"Removing existing directory: {helm_chart_path}")
+                    run_command(f"rm -rf {helm_chart_path}")
+
+                clone_command = f"git clone {repo_url} {helm_chart_path}"
+                log_and_print(f"Cloning repository: {clone_command}")
+                run_command(clone_command)
+
+                chart_location = os.path.join(helm_chart_path, "charts", "kubescape-operator")
+                if not os.path.exists(chart_location):
+                    error_msg = f"Error: Could not find the kubescape-operator chart at {chart_location}"
+                    log_and_print(error_msg)
+                    raise Exception(error_msg)
+
+                log_and_print(f"Running 'helm dependency build' for {chart_location}...")
+                run_command(f"helm dependency build {chart_location}")
+            else:
+                log_and_print("Using Kubescape Helm repository...")
+                run_command('helm repo add kubescape https://kubescape.github.io/helm-charts/')
+                run_command('helm repo update')
+                chart_location = "kubescape/kubescape-operator"
 
         print("Deploying Kubescape Operator...")
         cluster_context = subprocess.run(['kubectl', 'config', 'current-context'], check=True, capture_output=True, text=True).stdout.strip()
@@ -416,7 +510,7 @@ def deploy_kubescape(
         # Build base helm command
         helm_command = (
             f'helm upgrade --install kubescape {chart_location} '
-            f'-n kubescape --create-namespace '
+            f'-n kubescape --create-namespace --devel '
             f'--set clusterName={cluster_context} '
             f'--set account={account} '
             f'--set accessKey={accessKey} '
@@ -514,6 +608,11 @@ def deploy_kubescape(
         if application_mode == 'load-simulator':
             log_and_print("Load-simulator mode detected: disabling node-agent HTTP exporter to prevent alerts to Armo backend")
             helm_command += ' --set nodeAgent.config.httpExporterConfig=null'
+
+        # Prefix all --set parameters for armo chart
+        if param_prefix:
+            log_and_print(f"Prefixing all helm parameters with '{param_prefix}.' for armo chart")
+            helm_command = prefix_helm_set_params(helm_command, param_prefix)
 
         log_and_print(f"Final Helm command: {helm_command}")
         run_command(helm_command)
@@ -819,7 +918,7 @@ def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
         # Step 5: Apply the update via Helm with the git branch chart
         helm_command = (
             f"helm upgrade --install kubescape {chart_location} "
-            f"-n kubescape -f kubescape-autoscale.yaml"
+            f"-n kubescape --devel -f kubescape-autoscale.yaml"
         )
     else:
         # Use standard chart from Helm repo
@@ -843,7 +942,7 @@ def update_kubescape_helm(node_size, node_count, helm_git_branch=None):
         # Apply the update via standard Helm repo
         helm_command = (
             "helm upgrade --install kubescape kubescape/kubescape-operator "
-            "-n kubescape -f kubescape-autoscale.yaml"
+            "-n kubescape --devel -f kubescape-autoscale.yaml"
         )
 
     # Run the prepared helm command
@@ -991,6 +1090,7 @@ def main():
     parser.add_argument('-private-node-agent', type=str, help="Specify the private node agent version")
     parser.add_argument('-use-private-node-agent', action='store_true', help="Use private node agent image when KDR is enabled")
     parser.add_argument('-helm-git-branch', type=str, help="Git branch name or full repository URL for custom Helm chart")
+    parser.add_argument('--helm-chart-type', type=str, default='public', choices=['public', 'armo'], help="Helm chart type: 'public' (kubescape/helm-charts) or 'armo' (armosec/helm-charts)")
     parser.add_argument('--application-mode', type=str, default='microservices-demo', choices=['microservices-demo', 'load-simulator'], help="Application mode (default is 'microservices-demo', other option is 'load-simulator')")
 
 
@@ -1048,7 +1148,8 @@ def main():
         helm_git_branch=args.helm_git_branch,
         resource_config=resource_config,
         use_private_node_agent=args.use_private_node_agent,
-        application_mode=args.application_mode
+        application_mode=args.application_mode,
+        helm_chart_type=args.helm_chart_type
     )
 
     time.sleep(40)  # Wait for the operator to deploy
